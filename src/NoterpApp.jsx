@@ -10,7 +10,7 @@ import Projects  from "./modules/Projects.jsx";
 import Memo      from "./modules/Memo.jsx";
 import Ledger    from "./modules/Ledger.jsx";
 
-const PASSWORD = "곽송erp!";
+const PASSWORD = "ghkdlxld!";
 
 const MENU = [
   { key:"dashboard", label:"대시보드",     Icon:LayoutDashboard, Component:Dashboard },
