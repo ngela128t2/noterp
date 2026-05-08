@@ -1,26 +1,99 @@
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Building2, FolderKanban,
-  PenLine, Receipt, Database, ChevronLeft, ChevronRight
+  PenLine, Receipt, ChevronLeft, ChevronRight, Lock, LogOut
 } from "lucide-react";
 
-import Dashboard  from "./modules/Dashboard.jsx";
-import Clients    from "./modules/Clients.jsx";
-import Projects   from "./modules/Projects.jsx";
-import Memo       from "./modules/Memo.jsx";
-import Ledger     from "./modules/Ledger.jsx";
-import SeedImport from "./modules/SeedImport.jsx";
+import Dashboard from "./modules/Dashboard.jsx";
+import Clients   from "./modules/Clients.jsx";
+import Projects  from "./modules/Projects.jsx";
+import Memo      from "./modules/Memo.jsx";
+import Ledger    from "./modules/Ledger.jsx";
+
+const PASSWORD = "곽송erp!";
 
 const MENU = [
-  { key:"dashboard", label:"대시보드",       Icon:LayoutDashboard, Component:Dashboard },
-  { key:"clients",   label:"거래처",          Icon:Building2,       Component:Clients   },
-  { key:"projects",  label:"프로젝트",        Icon:FolderKanban,    Component:Projects  },
-  { key:"memo",      label:"데일리 메모",     Icon:PenLine,         Component:Memo      },
-  { key:"ledger",    label:"매출매입장",      Icon:Receipt,         Component:Ledger    },
-  { key:"seed",      label:"데이터 가져오기", Icon:Database,        Component:SeedImport },
+  { key:"dashboard", label:"대시보드",     Icon:LayoutDashboard, Component:Dashboard },
+  { key:"clients",   label:"거래처",        Icon:Building2,       Component:Clients   },
+  { key:"projects",  label:"프로젝트",      Icon:FolderKanban,    Component:Projects  },
+  { key:"memo",      label:"데일리 메모",   Icon:PenLine,         Component:Memo      },
+  { key:"ledger",    label:"매출매입장",    Icon:Receipt,         Component:Ledger    },
 ];
 
+// ─── 비밀번호 게이트 ──────────────────────────────────────────
+function PasswordGate({ children }) {
+  const [unlocked, setUnlocked] = useState(null);
+  const [input, setInput] = useState("");
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setUnlocked(localStorage.getItem("noterp_unlocked") === "yes");
+  }, []);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (input === PASSWORD) {
+      localStorage.setItem("noterp_unlocked", "yes");
+      setUnlocked(true);
+      setError(false);
+    } else {
+      setError(true);
+      setInput("");
+    }
+  };
+
+  if (unlocked === null) return null;
+  if (unlocked) return children;
+
+  return (
+    <div style={lockStyles.root}>
+      <style>{`
+        @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+        body{margin:0}
+      `}</style>
+      <div style={lockStyles.box}>
+        <Lock size={32} color="#2563eb" strokeWidth={2.2}/>
+        <div style={lockStyles.brand}>NOTERP</div>
+        <div style={lockStyles.title}>비밀번호를 입력해주세요</div>
+
+        <form onSubmit={handleSubmit} style={{width:"100%"}}>
+          <input
+            type="password"
+            autoFocus
+            placeholder="비밀번호"
+            value={input}
+            onChange={e=>{setInput(e.target.value); setError(false);}}
+            style={{...lockStyles.input, ...(error?lockStyles.inputErr:{}), animation: error?"shake 0.3s":"none"}}
+          />
+          {error && <div style={lockStyles.err}>비밀번호가 틀렸어요</div>}
+          <button type="submit" style={lockStyles.btn}>들어가기</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+const lockStyles = {
+  root:  { display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)",fontFamily:"'Pretendard','Apple SD Gothic Neo',sans-serif" },
+  box:   { background:"#fff",borderRadius:16,padding:"40px 36px",width:340,boxShadow:"0 20px 60px rgba(0,0,0,0.1)",display:"flex",flexDirection:"column",alignItems:"center" },
+  brand: { fontSize:13,fontWeight:800,letterSpacing:4,color:"#2563eb",marginTop:14 },
+  title: { fontSize:15,color:"#444",margin:"6px 0 24px",fontWeight:500 },
+  input: { width:"100%",border:"1.5px solid #e5e5e5",borderRadius:10,padding:"12px 14px",fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit" },
+  inputErr:{ borderColor:"#ef4444" },
+  err:   { color:"#ef4444",fontSize:12,marginTop:6,textAlign:"left" },
+  btn:   { width:"100%",background:"#2563eb",color:"#fff",border:"none",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",marginTop:14 },
+};
+
+// ─── 메인 앱 ──────────────────────────────────────────────────
 export default function NoterpApp() {
+  return (
+    <PasswordGate>
+      <NoterpMain/>
+    </PasswordGate>
+  );
+}
+
+function NoterpMain() {
   const [active,    setActive]    = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [stats,     setStats]     = useState({ clients:0, projects:0, memos:0, txs:0 });
@@ -49,6 +122,12 @@ export default function NoterpApp() {
     loadStats();
   }, [active]);
 
+  const handleLogout = () => {
+    if(!confirm("로그아웃 하시겠습니까?")) return;
+    localStorage.removeItem("noterp_unlocked");
+    window.location.reload();
+  };
+
   const ActiveComponent = MENU.find(m=>m.key===active)?.Component || Dashboard;
 
   return (
@@ -60,7 +139,7 @@ export default function NoterpApp() {
         * { box-sizing: border-box; }
         .menu-item:hover{background:#f0f4ff!important}
         .menu-item-active:hover{background:#2563eb!important}
-        .collapse-btn:hover{background:#e5e7eb!important}
+        .collapse-btn:hover,.logout-btn:hover{background:#e5e7eb!important}
       `}</style>
 
       <aside style={{...s.sidebar, width: collapsed ? 64 : 220}}>
@@ -102,6 +181,12 @@ export default function NoterpApp() {
         )}
 
         <div style={s.sideFoot}>
+          <button className="logout-btn"
+            style={{...s.collapseBtn, justifyContent:collapsed?"center":"flex-start", marginBottom:4}}
+            onClick={handleLogout} title="로그아웃">
+            <LogOut size={14}/>
+            {!collapsed && <span style={{marginLeft:6,fontSize:12}}>로그아웃</span>}
+          </button>
           <button className="collapse-btn"
             style={{...s.collapseBtn, justifyContent:collapsed?"center":"flex-start"}}
             onClick={()=>setCollapsed(c=>!c)}>
