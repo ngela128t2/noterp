@@ -226,7 +226,7 @@ export default function NoterpMemo() {
 
             <textarea style={s.contentInput}
               placeholder={`예시)
-성문화학 재고실사 완료. 김대리한테 추가자료 요청함.
+LG화학 재고실사 완료. 김대리한테 추가자료 요청함.
 삼성전자 세무조정 검토 시작.
 가톨릭대 강의 자료 준비 (법인세법 5장).`}
               value={content}
