@@ -348,7 +348,7 @@ export default function NoterpClients() {
             ):tab==="기본"?(
               <div style={s.grid}>
                 <FL label="거래처명 *" full>
-                  <In value={form.name} onChange={v=>setF("name",v)} ph="주식회사 성문화학"/>
+                  <In value={form.name} onChange={v=>setF("name",v)} ph="주식회사 ABC"/>
                 </FL>
 
                 <FL label="법인구분">
