@@ -13,11 +13,11 @@ import Memo      from "./modules/Memo.jsx";
 import Ledger    from "./modules/Ledger.jsx";
 
 const MENU = [
-  { key:"dashboard", label:"대시보드",   short:"홈",    Icon:LayoutDashboard, Component:Dashboard },
-  { key:"clients",   label:"거래처",      short:"거래처",Icon:Building2,       Component:Clients   },
-  { key:"projects",  label:"프로젝트",    short:"프로젝트",Icon:FolderKanban,  Component:Projects  },
-  { key:"memo",      label:"데일리 메모", short:"메모",  Icon:PenLine,         Component:Memo      },
-  { key:"ledger",    label:"매출매입장",  short:"장부",  Icon:Receipt,         Component:Ledger    },
+  { key:"dashboard", label:"대시보드",   short:"홈",      Icon:LayoutDashboard, Component:Dashboard },
+  { key:"clients",   label:"거래처",      short:"거래처",  Icon:Building2,       Component:Clients   },
+  { key:"projects",  label:"프로젝트",    short:"프로젝트",Icon:FolderKanban,    Component:Projects  },
+  { key:"memo",      label:"데일리 메모", short:"메모",    Icon:PenLine,         Component:Memo      },
+  { key:"ledger",    label:"매출매입장",  short:"장부",    Icon:Receipt,         Component:Ledger    },
 ];
 
 function useIsMobile() {
@@ -31,22 +31,17 @@ function useIsMobile() {
   return isMobile;
 }
 
-// ─── 로그인 화면 ──────────────────────────────────────────────
 function AuthGate({ children }) {
   const [session, setSession] = useState(undefined);
   const [email,   setEmail]   = useState("");
   const [pw,      setPw]      = useState("");
-  const [mode,    setMode]    = useState("login"); // login | signup
+  const [mode,    setMode]    = useState("login");
   const [error,   setError]   = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
-    });
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => subscription.unsubscribe();
   }, []);
 
@@ -70,7 +65,7 @@ function AuthGate({ children }) {
 
   return (
     <div style={a.root}>
-      <style>{`@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}} body{margin:0}`}</style>
+      <style>{`body{margin:0}`}</style>
       <div style={a.box}>
         <Lock size={30} color="#2563eb" strokeWidth={2.2}/>
         <div style={a.brand}>NOTERP</div>
@@ -79,17 +74,14 @@ function AuthGate({ children }) {
           <input type="email" placeholder="이메일" value={email} required
             onChange={e=>setEmail(e.target.value)} style={a.input}/>
           <input type="password" placeholder="비밀번호" value={pw} required
-            onChange={e=>setPw(e.target.value)} style={{...a.input, marginTop:8}}/>
-          {error && <div style={{
-            color: error.startsWith("✓") ? "#059669" : "#ef4444",
-            fontSize:12, marginTop:6
-          }}>{error}</div>}
+            onChange={e=>setPw(e.target.value)} style={{...a.input,marginTop:8}}/>
+          {error && <div style={{color:error.startsWith("✓")?"#059669":"#ef4444",fontSize:12,marginTop:6}}>{error}</div>}
           <button type="submit" disabled={loading} style={a.btn}>
-            {loading ? "처리 중..." : mode === "login" ? "로그인" : "가입하기"}
+            {loading ? "처리 중..." : mode==="login" ? "로그인" : "가입하기"}
           </button>
         </form>
-        <button style={a.switchBtn} onClick={()=>{setMode(m=>m==="login"?"signup":"login"); setError("");}}>
-          {mode === "login" ? "계정이 없으신가요? 회원가입" : "이미 계정이 있으신가요? 로그인"}
+        <button style={a.switchBtn} onClick={()=>{setMode(m=>m==="login"?"signup":"login");setError("");}}>
+          {mode==="login" ? "계정이 없으신가요? 회원가입" : "이미 계정이 있으신가요? 로그인"}
         </button>
       </div>
     </div>
@@ -97,26 +89,25 @@ function AuthGate({ children }) {
 }
 
 const a = {
-  root:     { display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)",fontFamily:"'Pretendard','Apple SD Gothic Neo',sans-serif",padding:20 },
-  box:      { background:"#fff",borderRadius:16,padding:"36px 28px",width:"100%",maxWidth:340,boxShadow:"0 20px 60px rgba(0,0,0,0.1)",display:"flex",flexDirection:"column",alignItems:"center",boxSizing:"border-box" },
-  brand:    { fontSize:13,fontWeight:800,letterSpacing:4,color:"#2563eb",marginTop:12 },
-  title:    { fontSize:14,color:"#444",margin:"6px 0 20px",fontWeight:500 },
-  input:    { width:"100%",border:"1.5px solid #e5e5e5",borderRadius:10,padding:"12px 14px",fontSize:16,outline:"none",boxSizing:"border-box",fontFamily:"inherit",display:"block" },
-  btn:      { width:"100%",background:"#2563eb",color:"#fff",border:"none",borderRadius:10,padding:13,fontSize:14,fontWeight:700,cursor:"pointer",marginTop:14 },
-  switchBtn:{ background:"none",border:"none",color:"#2563eb",fontSize:12,cursor:"pointer",marginTop:12 },
+  root:     {display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)",fontFamily:"'Pretendard','Apple SD Gothic Neo',sans-serif",padding:20},
+  box:      {background:"#fff",borderRadius:16,padding:"36px 28px",width:"100%",maxWidth:340,boxShadow:"0 20px 60px rgba(0,0,0,0.1)",display:"flex",flexDirection:"column",alignItems:"center",boxSizing:"border-box"},
+  brand:    {fontSize:13,fontWeight:800,letterSpacing:4,color:"#2563eb",marginTop:12},
+  title:    {fontSize:14,color:"#444",margin:"6px 0 20px",fontWeight:500},
+  input:    {width:"100%",border:"1.5px solid #e5e5e5",borderRadius:10,padding:"12px 14px",fontSize:16,outline:"none",boxSizing:"border-box",fontFamily:"inherit",display:"block"},
+  btn:      {width:"100%",background:"#2563eb",color:"#fff",border:"none",borderRadius:10,padding:13,fontSize:14,fontWeight:700,cursor:"pointer",marginTop:14},
+  switchBtn:{background:"none",border:"none",color:"#2563eb",fontSize:12,cursor:"pointer",marginTop:12},
 };
 
-// ─── 메인 ─────────────────────────────────────────────────────
 export default function NoterpApp() {
   return <AuthGate><NoterpMain/></AuthGate>;
 }
 
 function NoterpMain() {
-  const isMobile = useIsMobile();
+  const isMobile    = useIsMobile();
   const [active,     setActive]     = useState("dashboard");
   const [collapsed,  setCollapsed]  = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [stats,      setStats]      = useState({ clients:0, projects:0, memos:0, txs:0 });
+  const [stats,      setStats]      = useState({clients:0,projects:0,memos:0,txs:0});
 
   useEffect(()=>{
     (async()=>{
@@ -165,7 +156,6 @@ function NoterpMain() {
         body{margin:0} *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
         input,select,textarea{font-size:16px!important}
       `}</style>
-
       <header style={s.mTopBar}>
         <button style={s.mMenuBtn} onClick={()=>setDrawerOpen(true)}><Menu size={22}/></button>
         <div style={s.mTopTitle}>
@@ -174,16 +164,12 @@ function NoterpMain() {
         </div>
         <div style={{width:38}}/>
       </header>
-
       <main style={s.mContent}>
-        <div key={active} style={{animation:"fadeIn 0.2s"}}>
-          <ActiveComponent/>
-        </div>
+        <div key={active} style={{animation:"fadeIn 0.2s"}}><ActiveComponent/></div>
       </main>
-
       <nav style={s.mTabBar}>
         {MENU.map(m=>{
-          const on = active===m.key;
+          const on=active===m.key;
           return (
             <button key={m.key} style={{...s.mTab,...(on?s.mTabOn:{})}} onClick={()=>setActive(m.key)}>
               <m.Icon size={20} strokeWidth={on?2.4:1.8}/>
@@ -192,15 +178,11 @@ function NoterpMain() {
           );
         })}
       </nav>
-
       {drawerOpen && <>
         <div style={s.drawerOverlay} onClick={()=>setDrawerOpen(false)}/>
         <aside style={s.drawer}>
           <div style={s.drawerHeader}>
-            <div>
-              <div style={s.logoMain}>NOTERP</div>
-              <div style={s.logoSub}>업무관리 시스템</div>
-            </div>
+            <div><div style={s.logoMain}>NOTERP</div><div style={s.logoSub}>업무관리 시스템</div></div>
             <button style={s.drawerClose} onClick={()=>setDrawerOpen(false)}><X size={20}/></button>
           </div>
           <StatBox/>
@@ -223,8 +205,7 @@ function NoterpMain() {
         .mia:hover{background:#2563eb!important}
         .sb:hover{background:#e5e7eb!important}
       `}</style>
-
-      <aside style={{...s.sidebar, width:collapsed?64:220}}>
+      <aside style={{...s.sidebar,width:collapsed?64:220}}>
         <div style={s.logoBox}>
           {!collapsed
             ? <div><div style={s.logoMain}>NOTERP</div><div style={s.logoSub}>업무관리 시스템</div></div>
@@ -232,10 +213,10 @@ function NoterpMain() {
         </div>
         <nav style={s.nav}>
           {MENU.map(m=>{
-            const on = active===m.key;
+            const on=active===m.key;
             return (
               <button key={m.key} className={on?"mia":"mi"}
-                style={{...s.menuBtn,...(on?s.menuBtnOn:{}), justifyContent:collapsed?"center":"flex-start"}}
+                style={{...s.menuBtn,...(on?s.menuBtnOn:{}),justifyContent:collapsed?"center":"flex-start"}}
                 onClick={()=>setActive(m.key)} title={collapsed?m.label:""}>
                 <m.Icon size={18} strokeWidth={on?2.4:1.8}/>
                 {!collapsed && <span style={s.menuLabel}>{m.label}</span>}
@@ -246,15 +227,13 @@ function NoterpMain() {
         {!collapsed && <StatBox/>}
         <div style={s.sideFoot}>
           <button className="sb" style={{...s.collapseBtn,justifyContent:collapsed?"center":"flex-start",marginBottom:4}} onClick={handleLogout}>
-            <LogOut size={14}/>
-            {!collapsed && <span style={{marginLeft:6,fontSize:12}}>로그아웃</span>}
+            <LogOut size={14}/>{!collapsed&&<span style={{marginLeft:6,fontSize:12}}>로그아웃</span>}
           </button>
           <button className="sb" style={{...s.collapseBtn,justifyContent:collapsed?"center":"flex-start"}} onClick={()=>setCollapsed(c=>!c)}>
-            {collapsed ? <ChevronRight size={16}/> : <><ChevronLeft size={16}/><span style={{marginLeft:6,fontSize:12}}>접기</span></>}
+            {collapsed?<ChevronRight size={16}/>:<><ChevronLeft size={16}/><span style={{marginLeft:6,fontSize:12}}>접기</span></>}
           </button>
         </div>
       </aside>
-
       <main style={s.main}>
         <div key={active} style={s.contentFrame}><ActiveComponent/></div>
       </main>
@@ -280,7 +259,6 @@ const s = {
   collapseBtn:{width:"100%",display:"flex",alignItems:"center",border:"none",background:"transparent",borderRadius:8,padding:"8px 12px",cursor:"pointer",color:"#888",transition:"background 0.1s"},
   main:{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"},
   contentFrame:{flex:1,overflow:"auto",animation:"fadeIn 0.25s ease"},
-
   mRoot:{display:"flex",flexDirection:"column",minHeight:"100vh",background:"#f5f5f3",color:"#1a1a1a",fontFamily:"'Pretendard','Apple SD Gothic Neo',sans-serif"},
   mTopBar:{position:"sticky",top:0,zIndex:50,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:"#fff",borderBottom:"1px solid #e5e7eb",boxShadow:"0 1px 3px rgba(0,0,0,0.04)"},
   mMenuBtn:{background:"none",border:"none",cursor:"pointer",padding:8,color:"#555",display:"flex",alignItems:"center"},
