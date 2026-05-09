@@ -1,3 +1,4 @@
+import { supabase } from "./supabase.js";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Building2, FolderKanban,
