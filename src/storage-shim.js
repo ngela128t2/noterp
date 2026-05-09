@@ -1,28 +1,34 @@
-// window.storage 호환 레이어 - localStorage 사용
-// Claude artifact API (window.storage) → 일반 브라우저 localStorage
+import { supabase } from "./supabase.js";
 
-if (typeof window !== 'undefined' && !window.storage) {
-  window.storage = {
-    async get(key) {
-      const v = localStorage.getItem(key);
-      if (v === null) return null;
-      return { key, value: v };
-    },
-    async set(key, value) {
-      localStorage.setItem(key, value);
-      return { key, value };
-    },
-    async delete(key) {
-      localStorage.removeItem(key);
-      return { key, deleted: true };
-    },
-    async list(prefix = '') {
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!prefix || k.startsWith(prefix)) keys.push(k);
-      }
-      return { keys };
-    },
-  };
-}
+window.storage = {
+  async get(key) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await supabase
+      .from("kv_store")
+      .select("value")
+      .eq("user_id", user.id)
+      .eq("key", key)
+      .single();
+    if (!data) return null;
+    return { key, value: data.value };
+  },
+
+  async set(key, value) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    await supabase.from("kv_store").upsert({
+      user_id: user.id, key, value,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id,key" });
+    return { key, value };
+  },
+
+  async delete(key) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    await supabase.from("kv_store")
+      .delete().eq("user_id", user.id).eq("key", key);
+    return { key, deleted: true };
+  },
+};
