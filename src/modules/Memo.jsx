@@ -22,7 +22,7 @@ async function analyzeMemo(text, projects) {
       client: p.client_name, service: p.service,
     }));
 
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+const response = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
