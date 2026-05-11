@@ -66,36 +66,35 @@ function ctStyle(type) {
 
 // ─── AI 추출 ──────────────────────────────────────────────────
 async function extractFromFile(file) {
-  const base64 = await new Promise((res,rej)=>{
+  const base64 = await new Promise((res, rej) => {
     const r = new FileReader();
-    r.onload = ()=>res(r.result.split(",")[1]);
+    r.onload = () => res(r.result.split(",")[1]);
     r.onerror = rej;
     r.readAsDataURL(file);
   });
-  const isPdf = file.type==="application/pdf";
-  const response = await fetch("/api/claude", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
+
+  const resp = await fetch("/api/claude", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model:"claude-sonnet-4-20250514", max_tokens:1000,
-      messages:[{role:"user", content:[
-        { type: isPdf?"document":"image", source:{type:"base64",media_type:file.type,data:base64} },
-        { type:"text", text:`사업자등록증에서 정보 추출 후 JSON만 반환. 없으면 빈 문자열.
+      prompt: `사업자등록증에서 정보 추출 후 JSON만 반환. 없으면 빈 문자열.
 {
-  "name":"상호 또는 법인명",
-  "corp_type":"법인 또는 개인",
-  "biz_no":"사업자등록번호(000-00-00000)",
-  "id_no":"법인등록번호(있으면 000000-0000000, 없으면 빈 문자열)",
-  "rep":"대표자 성명",
-  "address":"사업장 소재지",
-  "industry":"업태/종목"
+  "name": "상호 또는 법인명",
+  "corp_type": "법인 또는 개인",
+  "biz_no": "사업자등록번호(000-00-00000)",
+  "id_no": "법인등록번호(있으면 000000-0000000, 없으면 빈 문자열)",
+  "rep": "대표자 성명",
+  "address": "사업장 소재지",
+  "industry": "업태/종목"
 }
-JSON 외 텍스트 없이.` }
-      ]}]
+JSON 외 텍스트 없이.`,
+      image: { base64, mimeType: file.type }
     })
   });
+
   const data = await resp.json();
-  return JSON.parse(data.content?.[0]?.text?.replace(/```json|```/g,"").trim());
+  const text = data.content?.[0]?.text || "";
+  return JSON.parse(text.replace(/```json|```/g, "").trim());
 }
 
 // ─── 메인 ─────────────────────────────────────────────────────
