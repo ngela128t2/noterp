@@ -93,7 +93,7 @@ JSON 외 텍스트 없이.`,
   });
 
   const data = await resp.json();
-  const text = data.content?.[0]?.text || "";
+  const text = data.text || data.content?.[0]?.text || "";
   return JSON.parse(text.replace(/```json|```/g, "").trim());
 }
 
