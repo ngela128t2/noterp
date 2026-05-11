@@ -22,15 +22,11 @@ async function analyzeMemo(text, projects) {
       client: p.client_name, service: p.service,
     }));
 
-const response = await fetch("/api/claude", {
+  const resp = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
-      messages: [{
-        role: "user",
-        content: `다음 데일리 메모를 분석해서 각 내용을 어떤 프로젝트에 연결할지 판단해주세요.
+      prompt: `다음 데일리 메모를 분석해서 각 내용을 어떤 프로젝트에 연결할지 판단해주세요.
 
 [데일리 메모]
 ${text}
@@ -40,27 +36,26 @@ ${JSON.stringify(projectList, null, 2)}
 
 [지시사항]
 1. 메모를 의미 단위로 나누어 각 부분이 어떤 프로젝트에 해당하는지 판단
-2. 거래처명, 서비스 키워드(감사·기장·세무·강의 등), 맥락으로 매칭
+2. 거래처명, 서비스 키워드로 매칭
 3. 매칭되는 프로젝트가 없으면 project_id를 빈 문자열로
-4. 각 항목에 적절한 태그 부여 (계약/미팅/현장/서류/검토/완료/기타 중 1개)
+4. 각 항목에 태그 부여 (계약/미팅/현장/서류/검토/완료/기타 중 1개)
 
 JSON 배열만 반환:
 [
   {
     "project_id": "프로젝트 id",
-    "project_code": "프로젝트 코드 (참고용)",
+    "project_code": "프로젝트 코드",
     "snippet": "해당 부분 메모 내용",
     "tag": "태그"
   }
 ]
 JSON 외 텍스트 없이.`
-      }]
     })
   });
 
   const data = await resp.json();
   const txt = data.content?.[0]?.text || "";
-  return JSON.parse(txt.replace(/```json|```/g,"").trim());
+  return JSON.parse(txt.replace(/```json|```/g, "").trim());
 }
 
 // ─── 메인 ─────────────────────────────────────────────────────
