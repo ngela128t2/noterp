@@ -119,6 +119,7 @@ export default function NoterpClients() {
       setLoading(false);
     })();
   },[]);
+  
 
   const persist = async d => { try{ await window.storage.set("noterp_cl",JSON.stringify(d)); }catch{} };
   const notify  = msg => { setToast(msg); setTimeout(()=>setToast(null),2500); };
@@ -146,6 +147,31 @@ export default function NoterpClients() {
     finally { setExtract(false); }
   };
 
+// Ctrl+v 해서 OCR 실행=============================================
+  useEffect(() => {
+    const handlePaste = async (e) => {
+      // 클립보드에 데이터가 있는지 확인
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      // 클립보드 아이템 중 '이미지' 파일만 찾기
+      for (const item of items) {
+        if (item.type.indexOf("image") === 0) {
+          const file = item.getAsFile();
+          
+          // 위에서 만든 handleFile 함수를 그대로 재활용해서 넘겨줍니다!
+          handleFile({ target: { files: [file], value: "" } });
+          break; // 이미지를 찾았으면 반복 종료
+        }
+      }
+    };
+
+    // 화면 전체에 '붙여넣기(Ctrl+V)' 이벤트 리스너 달기
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, []); // 빈 배열을 넣어서 컴포넌트가 처음 켜질 때 한 번만 실행되게 합니다.
+  // 🎯 [여기까지 추가] ==============================================
+  
   const handleSubmit = async () => {
     if(!form.name.trim()) return;
     let updated;
