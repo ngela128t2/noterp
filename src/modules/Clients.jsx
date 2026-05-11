@@ -77,6 +77,7 @@ async function extractFromFile(file) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      // 🎯 수정된 부분: 프롬프트에 개업연월일(opening_date) 추가
       prompt: `사업자등록증에서 정보 추출 후 JSON만 반환. 없으면 빈 문자열.
 {
   "name": "상호 또는 법인명",
@@ -85,7 +86,8 @@ async function extractFromFile(file) {
   "id_no": "법인등록번호(있으면 000000-0000000, 없으면 빈 문자열)",
   "rep": "대표자 성명",
   "address": "사업장 소재지",
-  "industry": "업태/종목"
+  "industry": "업태/종목",
+  "opening_date": "개업연월일(YYYY-MM-DD)"
 }
 JSON 외 텍스트 없이.`,
       image: { base64, mimeType: file.type }
@@ -141,6 +143,8 @@ export default function NoterpClients() {
         rep:         ex.rep||"",
         address:     ex.address||"",
         industry:    ex.industry||"",
+        // 🎯 수정된 부분: 추출된 개업일이 있으면 넣고, 없으면 오늘 날짜
+        reg_date:    ex.opening_date || today(),
       }));
       notify("✓ 사업자등록증 인식 완료");
     } catch { notify("인식 실패 — 직접 입력해주세요"); }
@@ -170,7 +174,7 @@ export default function NoterpClients() {
     window.addEventListener("paste", handlePaste);
     return () => window.removeEventListener("paste", handlePaste);
   }, []); // 빈 배열을 넣어서 컴포넌트가 처음 켜질 때 한 번만 실행되게 합니다.
-  // 🎯 [여기까지 추가] ==============================================
+  // =============================================================
   
   const handleSubmit = async () => {
     if(!form.name.trim()) return;
@@ -219,9 +223,13 @@ export default function NoterpClients() {
           <div style={s.brand}>NOTERP</div>
           <div style={s.pageTitle}>거래처 관리</div>
         </div>
-        <div style={{display:"flex",gap:8}}>
-          <button style={s.uploadBtn} onClick={()=>fileRef.current?.click()}>📄 사업자등록증</button>
-          <button style={s.addBtn} onClick={openAdd}>+ 직접 추가</button>
+        {/* 🎯 수정된 부분: 헤더 버튼 영역에 안내 문구 추가 */}
+        <div style={{display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4}}>
+          <div style={{display:"flex",gap:8}}>
+            <button style={s.uploadBtn} onClick={()=>fileRef.current?.click()}>📄 사업자등록증</button>
+            <button style={s.addBtn} onClick={openAdd}>+ 직접 추가</button>
+          </div>
+          <span style={{fontSize: 11, color: "#999", marginRight: 2}}>* PDF 업로드 또는 이미지 화면 캡처 후 Ctrl+V 가능</span>
         </div>
         <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={handleFile}/>
       </div>
@@ -250,7 +258,8 @@ export default function NoterpClients() {
         <div style={s.tableWrap}>
           {filtered.length===0 ? (
             <div style={s.empty}>
-              {clients.length===0?"사업자등록증을 업로드하거나 직접 추가해주세요":"검색 결과가 없습니다"}
+              {/* 🎯 수정된 부분: 거래처 목록이 비어있을 때 안내 문구 변경 */}
+              {clients.length===0?"사업자등록증 PDF를 업로드하거나, 화면 캡처 후 Ctrl + V를 눌러보세요 ✨":"검색 결과가 없습니다"}
             </div>
           ):(
             <table style={s.table}>
