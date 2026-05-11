@@ -5,14 +5,14 @@ window.storage = {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("kv_store")
         .select("value")
         .eq("user_id", user.id)
         .eq("key", key)
-        .maybeSingle();
-      if (!data) return null;
-      return { key, value: data.value };
+        .limit(1);
+      if (error || !data || data.length === 0) return null;
+      return { key, value: data[0].value };
     } catch { return null; }
   },
 
