@@ -33,8 +33,8 @@ function today() {
 const EMPTY = {
   name:"", corp_type:"법인", biz_no:"", id_no:"", fss_no:"",
   rep:"", address:"", contact:"", email:"", industry:"",
-  opening_date: "", // 개업일 분리
-  reg_date: today(), // 시스템 등록일 (오늘)
+  opening_date: "", // 개업연월일 (AI 추출용)
+  reg_date: today(), // 시스템 등록일 (오늘 날짜 고정)
   client_type:"매출처", service:"", service_detail:"", service_desc:"",
   bank_name:"", account_no:"", account_holder:"",
   manager:"", memo:"",
@@ -141,10 +141,11 @@ export default function NoterpClients() {
       const ex = await extractFromFile(file);
       const cleanBizNo = (ex.biz_no || "").replace(/\D/g, "");
       
-      // 혹시 모를 에러 방지를 위해 (c.biz_no || "") 처리로 더 안전하게 검사
+      // 기존 목록에서 사업자번호가 같은 거래처 찾기
       const existingClient = clients.find(c => (c.biz_no || "").replace(/\D/g, "") === cleanBizNo && cleanBizNo !== "");
 
       if (existingClient) {
+        // 이미 있는 거래처면 수정 모드
         setEditId(existingClient.id);
         setForm({
           ...existingClient,
@@ -155,11 +156,11 @@ export default function NoterpClients() {
           rep:         ex.rep || existingClient.rep,
           address:     ex.address || existingClient.address,
           industry:    ex.industry || existingClient.industry,
-          opening_date: ex.opening_date || existingClient.opening_date || "", // 개업일 덮어쓰기
-          reg_date:    existingClient.reg_date || today(), // 기존 시스템 등록일 유지
+          opening_date: ex.opening_date || existingClient.opening_date || "",
         });
-        notify("✓ 기존 거래처 발견! 정보를 업데이트합니다.");
+        notify("✓ 기존 거래처 발견! 최신 정보로 업데이트합니다.");
       } else {
+        // 새 거래처면 추가 모드
         setEditId(null);
         setForm({
           ...EMPTY,
@@ -170,8 +171,8 @@ export default function NoterpClients() {
           rep:         ex.rep||"",
           address:     ex.address||"",
           industry:    ex.industry||"",
-          opening_date: ex.opening_date || "", // 새 개업일
-          reg_date:    today(),                // 시스템 등록일은 오늘!
+          opening_date: ex.opening_date || "",
+          reg_date:    today(), // 시스템 등록일은 오늘로!
         });
         notify("✓ 새 사업자등록증 인식 완료");
       }
@@ -207,7 +208,7 @@ export default function NoterpClients() {
       const isDuplicate = clients.some(c => c.id !== editId && (c.biz_no || "").replace(/\D/g, "") === cleanBiz && cleanBiz !== "");
       
       if (isDuplicate) {
-        alert("⚠️ 이미 등록된 사업자번호입니다! (목록에서 해당 거래처를 검색해 보세요)");
+        alert("⚠️ 이미 등록된 사업자번호입니다! (중복 등록은 할 수 없습니다)");
         return; 
       }
     }
@@ -215,11 +216,11 @@ export default function NoterpClients() {
     let updated;
     if(editId){
       updated = clients.map(c=>c.id===editId?{...form,id:editId,code:c.code}:c);
-      notify("수정 완료");
+      notify("정보 수정 완료");
     } else {
       const code = genCode(clients, form.corp_type);
       updated = [{...form, id:Date.now().toString(), code, created_at:new Date().toISOString()}, ...clients];
-      notify(`거래처 추가 완료 (${code})`);
+      notify(`새 거래처 추가 완료 (${code})`);
     }
     setClients(updated); await persist(updated); setShowForm(false);
   };
@@ -296,8 +297,7 @@ export default function NoterpClients() {
           ):(
             <table style={s.table}>
               <thead><tr style={s.thead}>
-                {/* 🎯 테이블에 개업일, 등록일 모두 표시되도록 헤더 수정 */}
-                {["코드","거래처명","구분","사업자번호","대표자","개업일","시스템등록일","담당자"].map(h=>(
+                {["코드","거래처명","구분","사업자번호","대표자","개업일","시스템 등록일","담당자"].map(h=>(
                   <th key={h} style={s.th}>{h}</th>
                 ))}
               </tr></thead>
@@ -353,7 +353,7 @@ export default function NoterpClients() {
               ["금감원번호",  selected.fss_no,  false],
               ["대표자",      selected.rep,     false],
               ["개업일",      selected.opening_date, false], 
-              ["시스템등록일", selected.reg_date, false], 
+              ["시스템 등록일", selected.reg_date, false], 
               ["주소",        selected.address, false],
               ["연락처",      selected.contact, false],
               ["이메일",      selected.email,   false],
@@ -451,7 +451,7 @@ export default function NoterpClients() {
 
                 <FL label="시스템 등록일">
                   <input type="date" style={s.inp} value={form.reg_date}
-                    onChange={e=>setF("reg_date",e.target.value)} disabled={!!editId} />
+                    onChange={e=>setF("reg_date",e.target.value)} disabled />
                 </FL>
 
                 <FL label="연락처">
@@ -526,7 +526,7 @@ export default function NoterpClients() {
             {!extract&&(
               <div style={s.mFoot}>
                 <button style={s.cancelBtn} onClick={()=>setShowForm(false)}>취소</button>
-                <button style={s.saveBtn} onClick={handleSubmit}>{editId?"수정 완료":"추가"}</button>
+                <button style={s.saveBtn} onClick={handleSubmit}>{editId?"정보 수정 완료":"거래처 추가"}</button>
               </div>
             )}
           </div>
@@ -591,47 +591,4 @@ const s = {
   header:    {display:"flex",alignItems:"flex-end",justifyContent:"space-between",padding:"24px 32px 18px",background:"#fff",borderBottom:"1px solid #e5e5e5"},
   brand:     {fontSize:10,fontWeight:700,letterSpacing:4,color:"#2563eb",marginBottom:4},
   pageTitle: {fontSize:21,fontWeight:700},
-  uploadBtn: {background:"#f0f7ff",color:"#2563eb",border:"1.5px solid #bfdbfe",borderRadius:8,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer"},
-  addBtn:    {background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:600,cursor:"pointer"},
-  toolbar:   {display:"flex",alignItems:"center",gap:8,padding:"12px 32px",background:"#fff",borderBottom:"1px solid #e5e5e5",flexWrap:"wrap"},
-  search:    {flex:1,minWidth:180,border:"1px solid #ddd",borderRadius:8,padding:"8px 14px",fontSize:13,background:"#fafafa",outline:"none"},
-  filters:   {display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"},
-  fBtn:      {border:"1px solid #e5e5e5",borderRadius:20,padding:"4px 12px",fontSize:12,cursor:"pointer",background:"#fff",color:"#888",fontWeight:500},
-  fBtnOn:    {fontWeight:700,borderColor:"currentColor"},
-  count:     {fontSize:12,color:"#999",whiteSpace:"nowrap",marginLeft:"auto"},
-  body:      {display:"flex",padding:"20px 32px",gap:20,minHeight:"calc(100vh - 150px)"},
-  tableWrap: {flex:1,overflowX:"auto"},
-  table:     {width:"100%",borderCollapse:"collapse",background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.07)"},
-  thead:     {background:"#f8f9fa"},
-  th:        {padding:"11px 14px",fontSize:11,fontWeight:600,color:"#888",textAlign:"left",borderBottom:"1px solid #eee",whiteSpace:"nowrap",letterSpacing:0.3},
-  tr:        {borderBottom:"1px solid #f5f5f5",cursor:"pointer",transition:"background 0.1s"},
-  trOn:      {background:"#eff6ff"},
-  td:        {padding:"11px 14px",fontSize:13},
-  codeCell:  {whiteSpace:"nowrap"},
-  codeTag:   {fontFamily:"monospace",fontSize:11,fontWeight:700,color:"#2563eb",background:"#eff6ff",padding:"2px 7px",borderRadius:5},
-  mono:      {fontFamily:"monospace",letterSpacing:0.5},
-  badge:     {fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:20,display:"inline-block",whiteSpace:"nowrap"},
-  svcTag:    {fontSize:11,background:"#f0f4ff",color:"#2563eb",padding:"2px 7px",borderRadius:5,display:"inline-block"},
-  empty:     {textAlign:"center",color:"#bbb",fontSize:14,padding:"80px 0"},
-  detail:    {width:280,background:"#fff",borderRadius:12,padding:18,boxShadow:"0 1px 4px rgba(0,0,0,0.07)",alignSelf:"flex-start",position:"sticky",top:20,flexShrink:0},
-  dTop:      {display:"flex",justifyContent:"space-between",marginBottom:14,paddingBottom:14,borderBottom:"1px solid #f0f0f0"},
-  dName:     {fontSize:15,fontWeight:700,lineHeight:1.3,marginBottom:3},
-  dCode:     {fontSize:11,color:"#2563eb",fontFamily:"monospace",fontWeight:700},
-  editBtn:   {background:"#f0f4ff",color:"#2563eb",border:"none",borderRadius:6,padding:"5px 10px",fontSize:11,fontWeight:600,cursor:"pointer"},
-  delBtn:    {background:"#fff1f0",color:"#ef4444",border:"none",borderRadius:6,padding:"5px 10px",fontSize:11,fontWeight:600,cursor:"pointer"},
-  overlay:   {position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000},
-  modal:     {background:"#fff",borderRadius:14,padding:"26px 26px 22px",width:600,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(0,0,0,0.18)"},
-  mHead:     {display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16},
-  mTitle:    {fontSize:17,fontWeight:700},
-  extracting:{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#2563eb",fontWeight:500},
-  extBody:   {textAlign:"center",color:"#888",fontSize:14,padding:"44px 0"},
-  tabs:      {display:"flex",gap:0,marginBottom:20,borderBottom:"1px solid #eee"},
-  tabBtn:    {background:"none",border:"none",borderBottom:"2px solid transparent",padding:"8px 18px",fontSize:13,fontWeight:500,color:"#888",cursor:"pointer",marginBottom:-1,transition:"color 0.15s"},
-  tabOn:     {color:"#2563eb",borderBottomColor:"#2563eb",fontWeight:700},
-  grid:      {display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 20px"},
-  inp:       {border:"1px solid #ddd",borderRadius:7,padding:"8px 12px",fontSize:13,fontFamily:"inherit",width:"100%",boxSizing:"border-box"},
-  mFoot:     {display:"flex",justifyContent:"flex-end",gap:8,marginTop:22,paddingTop:16,borderTop:"1px solid #f0f0f0"},
-  cancelBtn: {background:"#f5f5f5",color:"#555",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:600,cursor:"pointer"},
-  saveBtn:   {background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"9px 22px",fontSize:13,fontWeight:600,cursor:"pointer"},
-  toast:     {position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#1a1a1a",color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:13,fontWeight:500,zIndex:2000,boxShadow:"0 4px 16px rgba(0,0,0,0.2)"},
-};
+  uploadBtn: {background:"#f0f7ff",color:"
