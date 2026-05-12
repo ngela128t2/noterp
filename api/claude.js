@@ -4,14 +4,14 @@ export default async function handler(req, res) {
   try {
     const { prompt, image, text, system } = req.body;
     
-    // 프롬프트 구성 (JSON만 대답하도록 강력하게 지시)
+    // AI가 JSON 형태로만 답하도록 시스템 프롬프트에 강력하게 세뇌(?) 시킵니다.
     let finalPrompt = "";
     if (system) finalPrompt += `[System]\n${system}\n\n`;
-    finalPrompt += `[User]\n${prompt || text || "사업자등록증 정보를 JSON으로 추출해."}\n반드시 JSON 형식으로만 응답하고 다른 설명은 절대 덧붙이지 마.`;
+    finalPrompt += `[User]\n${prompt || text || "사업자등록증 정보를 JSON으로 추출해."}\n반드시 순수한 JSON 형식으로만 응답하고, 마크다운(```json)이나 다른 설명은 절대 덧붙이지 마.`;
 
     const parts = [{ text: finalPrompt }];
 
-    // 이미지 데이터 처리
+    // 사진이 있을 경우 처리 로직
     if (image && image.base64) {
       const cleanBase64 = image.base64.includes(",") 
         ? image.base64.split(",")[1] 
@@ -26,26 +26,30 @@ export default async function handler(req, res) {
     }
 
     const API_KEY = process.env.GEMINI_API_KEY;
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
+    
+    // 🎯 가장 안정적인 주소 조합 (v1beta + gemini-1.5-flash)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
         contents: [{ parts }]
-        // 🎯 400 에러의 원인이었던 generationConfig 덩어리를 완전 삭제했습니다!
+        // 옵션 충돌을 막기 위해 generationConfig는 깔끔하게 비웠습니다.
       })
     });
 
     const data = await response.json();
 
-    // 에러 발생 시 처리
     if (!response.ok) {
       console.error("Gemini API Error Detail:", data);
       return res.status(400).json({ error: data.error?.message || "잘못된 요청입니다." });
     }
 
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    // 결과값에서 혹시 모를 마크다운 찌꺼기 제거
+    let resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    resultText = resultText.replace(/```json|```/g, "").trim();
+    
     res.status(200).json({ text: resultText });
 
   } catch (error) {
