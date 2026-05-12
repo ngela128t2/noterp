@@ -4,10 +4,10 @@ export default async function handler(req, res) {
   try {
     const { prompt, image, text, system } = req.body;
     
-    // 프롬프트 구성 (system 내용이 있으면 합치기)
+    // 프롬프트 구성 (JSON만 대답하도록 강력하게 지시)
     let finalPrompt = "";
     if (system) finalPrompt += `[System]\n${system}\n\n`;
-    finalPrompt += `[User]\n${prompt || text || "사업자등록증 정보를 JSON으로 추출해."}`;
+    finalPrompt += `[User]\n${prompt || text || "사업자등록증 정보를 JSON으로 추출해."}\n반드시 JSON 형식으로만 응답하고 다른 설명은 절대 덧붙이지 마.`;
 
     const parts = [{ text: finalPrompt }];
 
@@ -26,18 +26,14 @@ export default async function handler(req, res) {
     }
 
     const API_KEY = process.env.GEMINI_API_KEY;
-    // 🎯 해결 포인트 1: URL 버전을 v1으로 고정
-    // 🎯 해결 포인트 2: 모델명을 gemini-1.5-flash-latest 로 지정 (가장 안정적)
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
 
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
-        contents: [{ parts }],
-        generationConfig: {
-          responseMimeType: "application/json"
-        }
+        contents: [{ parts }]
+        // 🎯 400 에러의 원인이었던 generationConfig 덩어리를 완전 삭제했습니다!
       })
     });
 
