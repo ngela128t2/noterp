@@ -260,7 +260,7 @@ export default function NoterpClients() {
           ):(
             <table style={s.table}>
               <thead><tr style={s.thead}>
-                {["코드","거래처명","사업자번호","제공 용역","결산월","등록일","담당자"].map(h=>(
+                {["코드","거래처명","사업자번호","대표자","개업일","업종","제공 용역","결산월","등록일"].map(h=>(
                   <th key={h} style={s.th}>{h}</th>
                 ))}
               </tr></thead>
@@ -274,6 +274,9 @@ export default function NoterpClients() {
                     </td>
                     <td style={{...s.td,fontWeight:600}}>{c.name}</td>
                     <td style={{...s.td,...s.mono}}>{c.biz_no}</td>
+                    <td style={{...s.td,color:"#444"}}>{c.rep}</td>
+                    <td style={{...s.td,color:"#666",fontSize:12}}>{c.opening_date}</td>
+                    <td style={{...s.td,color:"#555",fontSize:12,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.industry}</td>
                     <td style={s.td}>
                       {c.service ? (
                         <span style={{...s.svcTag,
@@ -284,7 +287,6 @@ export default function NoterpClients() {
                     </td>
                     <td style={{...s.td,color:"#475569",fontSize:12}}>{c.fiscal_month||"12월"}</td>
                     <td style={{...s.td,color:"#999",fontSize:12}}>{c.reg_date}</td>
-                    <td style={{...s.td,color:"#666"}}>{c.manager}</td>
                   </tr>
                 ))}
               </tbody>
