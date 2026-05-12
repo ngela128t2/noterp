@@ -58,7 +58,7 @@ export default function memo() {
 반드시 아래 JSON 배열 형식으로만 대답해:
 [{ "project_id": "기존id(없으면 빈칸)", "is_new": true/false, "client_name": "새 거래처명", "service": "새 서비스명", "snippet": "메모 내용", "tag": "태그" }]`;
 
-      const resp = await fetch("/api/claud", {
+      const resp = await fetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: content, system: systemPrompt })
