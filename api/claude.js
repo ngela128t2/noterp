@@ -2,57 +2,56 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const { prompt, image } = req.body;
+    const { prompt, image, text } = req.body;
+    
+    // 텍스트 프롬프트 구성
+    const finalPrompt = prompt || text || "사업자등록증 정보를 JSON으로 추출해줘.";
+    const parts = [{ text: finalPrompt }];
 
-    // 1. 데이터 구성
-    const parts = [{ text: prompt || "사업자등록증 정보를 JSON으로 추출해줘." }];
-
+    // 이미지 데이터 구성
     if (image && image.base64) {
       const cleanBase64 = image.base64.includes(",") 
         ? image.base64.split(",")[1] 
         : image.base64;
 
       parts.push({
-        inline_data: {
-          mime_type: image.mimeType || "image/jpeg",
+        inlineData: {  // 🎯 수정됨: inline_data -> inlineData
+          mimeType: image.mimeType || "image/jpeg", // 🎯 수정됨: mime_type -> mimeType
           data: cleanBase64
         }
       });
     }
 
-    // 2. API 설정 (v1beta 대신 v1 사용, 모델명 확정)
     const MODEL = "gemini-1.5-flash";
-    const API_KEY = process.env.GEMINI_API_KEY; // 🎯 Vercel 변수명 확인 필수!
+    const API_KEY = process.env.GEMINI_API_KEY;
 
-    // 🎯 주소 끝에 :generateContent 확인
-    const url = `https://generativelanguage.googleapis.com/v1/models/${MODEL}:generateContent?key=${API_KEY}`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        contents: [{ parts }],
-        generationConfig: {
-          response_mime_type: "application/json" // 🎯 결과물을 JSON으로 강제
-        }
-      })
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          contents: [{ parts }],
+          generationConfig: {
+            responseMimeType: "application/json" // 🎯 수정됨: response_mime_type -> responseMimeType
+          }
+        })
+      }
+    );
 
     const data = await response.json();
 
-    // 3. 에러 핸들링 보강
+    // 에러 발생 시 상세 이유 반환 (400 에러 추적용)
     if (!response.ok) {
-      console.error("Gemini API 상세 에러:", data);
-      return res.status(response.status).json({ 
-        error: data.error?.message || "Gemini API 호출 중 에러가 발생했습니다." 
-      });
+      console.error("Gemini API Error Detail:", data);
+      return res.status(400).json({ error: data.error?.message || "잘못된 요청(400)입니다." });
     }
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    res.status(200).json({ text });
+    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    res.status(200).json({ text: resultText });
 
   } catch (error) {
     console.error("서버 내부 에러:", error);
-    res.status(500).json({ error: "서버가 응답하지 않습니다. 네트워크 설정을 확인하세요." });
+    res.status(500).json({ error: "서버 동작 중 에러가 발생했습니다." });
   }
 }
