@@ -3,52 +3,57 @@ export default async function handler(req, res) {
 
   try {
     const { prompt, image, text, system } = req.body;
-    
-    // 🎯 제 실수(특수기호 오류)를 완벽하게 고친 프롬프트 부분입니다.
+
+    // 프롬프트 세팅
     let finalPrompt = "";
     if (system) finalPrompt += `[System]\n${system}\n\n`;
-    finalPrompt += `[User]\n${prompt || text || "사업자등록증 정보를 JSON으로 추출해."}\n반드시 순수한 JSON 형식으로만 응답하고, 마크다운 기호나 다른 설명은 절대 덧붙이지 마.`;
+    finalPrompt += prompt || text || "사업자등록증 정보를 JSON으로 추출해줘.";
 
     const parts = [{ text: finalPrompt }];
 
+    // 🎯 데일리 메모(글자)만 보낼 때 서버가 터지지 않도록 방어막만 쳤습니다.
     if (image && image.base64) {
       const cleanBase64 = image.base64.includes(",") 
         ? image.base64.split(",")[1] 
         : image.base64;
 
+      // 파트너님의 원본 문법(snake_case) 그대로 복구!
       parts.push({
-        inlineData: {
-          mimeType: image.mimeType || "image/jpeg",
+        inline_data: {
+          mime_type: image.mimeType || "image/jpeg",
           data: cleanBase64
         }
       });
     }
 
-    const API_KEY = process.env.GEMINI_API_KEY;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        contents: [{ parts }]
-      })
-    });
+    // 🎯 파트너님이 맞았습니다. 2.5 버전으로 원상 복구!
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          contents: [{ parts }],
+          // 파트너님의 원본 문법 그대로 복구!
+          generationConfig: {
+            response_mime_type: "application/json"
+          }
+        })
+      }
+    );
 
     const data = await response.json();
 
-    if (!response.ok) {
-      console.error("Gemini API Error Detail:", data);
-      return res.status(400).json({ error: data.error?.message || "잘못된 요청입니다." });
+    if (data.error) {
+      console.error("Gemini API Error:", data.error);
+      return res.status(400).json({ error: data.error.message });
     }
 
-    let resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    resultText = resultText.replace(/```json|```/g, "").trim(); // 혹시 모를 찌꺼기 제거
-    
+    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
     res.status(200).json({ text: resultText });
 
   } catch (error) {
-    console.error("서버 내부 에러:", error);
-    res.status(500).json({ error: "서버 동작 중 에러가 발생했습니다." });
+    console.error("Server Error:", error);
+    res.status(500).json({ error: error.message });
   }
 }
