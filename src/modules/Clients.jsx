@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
-// ─── 상수 ─────────────────────────────────────────────────────
-const SERVICE_TYPES = ["세무대리","외부감사","컨설팅","자문","한공회","강의","중회협","기타"];
+// ─── 상수 (회계법인 맞춤형) ───────────────────────────────────────────────────
+const SERVICE_TYPES = ["세무대리","외부감사","컨설팅","자문","한공회","강의","기타"];
 
 const SERVICE_DETAIL = {
   "세무대리":["기장","청산신고","법인세 신고","종합소득세 신고","부가가치세 신고","원천세","기타"],
@@ -9,6 +9,7 @@ const SERVICE_DETAIL = {
   "컨설팅":  ["세무컨설팅","회계컨설팅","M&A","기타"],
   "자문":    ["세무자문","회계자문","법률자문","기타"],
   "한공회":  ["감리","윤리","품질관리","기타"],
+  "강의":    ["중회협","기업출강","기타"],
   "기타":    [],
 };
 
@@ -21,7 +22,6 @@ const CLIENT_TYPES = [
 const BANKS = ["국민","신한","하나","우리","농협","기업","SC제일","씨티","카카오뱅크",
   "토스뱅크","새마을금고","수협","부산","경남","대구","광주","전북","제주","산업","수출입","기타"];
 
-// 한국 시간(KST) 기준으로 오늘 날짜 구하기
 function today() {
   const now = new Date();
   const year = now.getFullYear();
@@ -33,8 +33,9 @@ function today() {
 const EMPTY = {
   name:"", corp_type:"법인", biz_no:"", id_no:"", fss_no:"",
   rep:"", address:"", contact:"", email:"", industry:"",
-  opening_date: "", // 개업연월일 (AI 추출용)
-  reg_date: today(), // 시스템 등록일 (오늘 날짜 고정)
+  opening_date: "", 
+  reg_date: today(), 
+  fiscal_month: "12월", // 🎯 추가: 회계법인 디폴트는 12월 결산!
   client_type:"매출처", service:"", service_detail:"", service_desc:"",
   bank_name:"", account_no:"", account_holder:"",
   manager:"", memo:"",
@@ -106,9 +107,9 @@ JSON 외 텍스트 없이.`,
 // ─── 메인 ─────────────────────────────────────────────────────
 export default function NoterpClients() {
   const [clients,  setClients]  = useState([]);
+  const [projects, setProjects] = useState([]); // 🎯 추가: 프로젝트 데이터를 담을 공간
   const [search,   setSearch]   = useState("");
-  const [ftType,   setFtType]   = useState("");
-  const [ftCorp,   setFtCorp]   = useState("");
+  const [ftSvc,    setFtSvc]    = useState(""); 
   const [showForm, setShowForm] = useState(false);
   const [editId,   setEditId]   = useState(null);
   const [form,     setForm]     = useState(EMPTY);
@@ -122,6 +123,8 @@ export default function NoterpClients() {
   useEffect(()=>{
     (async()=>{
       try { const r=await window.storage.get("noterp_cl"); if(r) setClients(JSON.parse(r.value)); } catch{}
+      // 🎯 추가: 프로젝트 데이터도 같이 불러옵니다 (키워드는 "noterp_pj"로 가정)
+      try { const p=await window.storage.get("noterp_pj"); if(p) setProjects(JSON.parse(p.value)); } catch{}
       setLoading(false);
     })();
   },[]);
@@ -131,7 +134,7 @@ export default function NoterpClients() {
   const setF    = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const openAdd  = () => { setEditId(null); setForm({...EMPTY,reg_date:today()}); setTab("기본"); setShowForm(true); };
-  const openEdit = c  => { setEditId(c.id); setForm({...c}); setTab("기본"); setShowForm(true); setSelected(null); };
+  const openEdit = c  => { setEditId(c.id); setForm({...c, fiscal_month: c.fiscal_month || "12월"}); setTab("기본"); setShowForm(true); setSelected(null); };
 
   const handleFile = async e => {
     const file = e.target.files?.[0]; if(!file) return; e.target.value="";
@@ -140,12 +143,9 @@ export default function NoterpClients() {
     try {
       const ex = await extractFromFile(file);
       const cleanBizNo = (ex.biz_no || "").replace(/\D/g, "");
-      
-      // 기존 목록에서 사업자번호가 같은 거래처 찾기
       const existingClient = clients.find(c => (c.biz_no || "").replace(/\D/g, "") === cleanBizNo && cleanBizNo !== "");
 
       if (existingClient) {
-        // 이미 있는 거래처면 수정 모드
         setEditId(existingClient.id);
         setForm({
           ...existingClient,
@@ -157,10 +157,10 @@ export default function NoterpClients() {
           address:     ex.address || existingClient.address,
           industry:    ex.industry || existingClient.industry,
           opening_date: ex.opening_date || existingClient.opening_date || "",
+          fiscal_month: existingClient.fiscal_month || "12월",
         });
         notify("✓ 기존 거래처 발견! 최신 정보로 업데이트합니다.");
       } else {
-        // 새 거래처면 추가 모드
         setEditId(null);
         setForm({
           ...EMPTY,
@@ -172,7 +172,8 @@ export default function NoterpClients() {
           address:     ex.address||"",
           industry:    ex.industry||"",
           opening_date: ex.opening_date || "",
-          reg_date:    today(), // 시스템 등록일은 오늘로!
+          fiscal_month: "12월", // 새 거래처도 기본은 12월
+          reg_date:    today(),
         });
         notify("✓ 새 사업자등록증 인식 완료");
       }
@@ -206,9 +207,8 @@ export default function NoterpClients() {
     if (form.biz_no) {
       const cleanBiz = form.biz_no.replace(/\D/g, "");
       const isDuplicate = clients.some(c => c.id !== editId && (c.biz_no || "").replace(/\D/g, "") === cleanBiz && cleanBiz !== "");
-      
       if (isDuplicate) {
-        alert("⚠️ 이미 등록된 사업자번호입니다! (중복 등록은 할 수 없습니다)");
+        alert("⚠️ 이미 등록된 사업자번호입니다!");
         return; 
       }
     }
@@ -234,8 +234,7 @@ export default function NoterpClients() {
   const filtered = clients.filter(c=>{
     const q=search.toLowerCase();
     return (!q||[c.name,c.biz_no,c.code,c.rep,c.manager,c.id_no].some(v=>(v||"").toLowerCase().includes(q)))
-      && (!ftType||c.client_type===ftType)
-      && (!ftCorp||c.corp_type===ftCorp);
+      && (!ftSvc||c.service===ftSvc); 
   });
 
   const idLabel = form.corp_type==="개인" ? "주민등록번호" : "법인번호";
@@ -270,17 +269,12 @@ export default function NoterpClients() {
 
       {/* 툴바 */}
       <div style={s.toolbar}>
-        <input style={s.search} placeholder="거래처명 / 코드 / 사업자번호 / 대표자 검색"
+        <input style={s.search} placeholder="거래처명 / 사업자번호 검색"
           value={search} onChange={e=>setSearch(e.target.value)}/>
         <div style={s.filters}>
-          {["",..."매출처,매입처,공통".split(",")].map(v=>(
-            <button key={v||"전체"} style={{...s.fBtn,...(ftType===v?{...s.fBtnOn,...(v?ctStyle(v):{color:"#1a1a1a",background:"#f0f0f0"})}:{})}}
-              onClick={()=>setFtType(v)}>{v||"전체"}</button>
-          ))}
-          <div style={{width:1,background:"#e5e5e5",height:20}}/>
-          {["","법인","개인"].map(v=>(
-            <button key={v||"전체법인구분"} style={{...s.fBtn,...(ftCorp===v?s.fBtnOn:{})}}
-              onClick={()=>setFtCorp(v)}>{v||"전체"}</button>
+          {["", "세무대리", "외부감사", "자문", "컨설팅", "한공회"].map(v=>(
+            <button key={v||"전체"} style={{...s.fBtn,...(ftSvc===v?s.fBtnOn:{})}}
+              onClick={()=>setFtSvc(v)}>{v||"전체 보기"}</button>
           ))}
         </div>
         <span style={s.count}>{filtered.length}개</span>
@@ -292,17 +286,22 @@ export default function NoterpClients() {
         <div style={s.tableWrap}>
           {filtered.length===0 ? (
             <div style={s.empty}>
-              {clients.length===0?"사업자등록증 PDF를 업로드하거나, 화면 캡처 후 Ctrl + V를 눌러보세요 ✨":"검색 결과가 없습니다"}
+              {clients.length===0?"사업자등록증을 캡처 후 Ctrl + V를 눌러보세요 ✨":"검색 결과가 없습니다"}
             </div>
           ):(
             <table style={s.table}>
               <thead><tr style={s.thead}>
-                {["코드","거래처명","구분","사업자번호","대표자","개업일","시스템 등록일","담당자"].map(h=>(
+                {/* 🎯 테이블 헤더에 결산월, PJT 수 추가 */}
+                {["코드","거래처명","사업자번호","제공 용역","결산월","PJT","시스템 등록일","담당자"].map(h=>(
                   <th key={h} style={s.th}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
-                {filtered.map(c=>(
+                {filtered.map(c=>{
+                  // 🎯 이 거래처와 연결된 프로젝트 수 계산 (client_id 또는 code 기준)
+                  const projCount = projects.filter(p => p.client_id === c.id || p.client_code === c.code).length;
+                  
+                  return (
                   <tr key={c.id} className="row"
                     style={{...s.tr,...(selected?.id===c.id?s.trOn:{})}}
                     onClick={()=>setSelected(selected?.id===c.id?null:c)}>
@@ -310,19 +309,28 @@ export default function NoterpClients() {
                       <span style={s.codeTag}>{c.code}</span>
                     </td>
                     <td style={{...s.td,fontWeight:600}}>{c.name}</td>
-                    <td style={s.td}>
-                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                        <span style={{...s.badge,...ctStyle(c.client_type)}}>{c.client_type}</span>
-                        <span style={{...s.badge,background:"#f5f5f5",color:"#666"}}>{c.corp_type}</span>
-                      </div>
-                    </td>
                     <td style={{...s.td,...s.mono}}>{c.biz_no}</td>
-                    <td style={s.td}>{c.rep}</td>
-                    <td style={{...s.td,color:"#666",fontSize:12}}>{c.opening_date || "-"}</td>
+                    <td style={s.td}>
+                      {c.service ? (
+                        <div style={{display:"flex", gap:4}}>
+                          <span style={{...s.svcTag, 
+                            background: c.service==="외부감사" ? "#eff6ff" : c.service==="세무대리" ? "#ecfdf5" : c.service==="한공회" ? "#f5f3ff" : "#f0f4ff",
+                            color: c.service==="외부감사" ? "#2563eb" : c.service==="세무대리" ? "#059669" : c.service==="한공회" ? "#7c3aed" : "#555"
+                          }}>{c.service}</span>
+                        </div>
+                      ) : <span style={{color:"#bbb", fontSize: 12}}>미지정</span>}
+                    </td>
+                    {/* 🎯 결산월 및 PJT 뱃지 표출 */}
+                    <td style={{...s.td,color:"#475569",fontSize:12, fontWeight:500}}>{c.fiscal_month || "12월"}</td>
+                    <td style={s.td}>
+                      {projCount > 0 ? (
+                        <span style={s.projTag}>{projCount}건</span>
+                      ) : <span style={{color:"#ddd", fontSize:11}}>-</span>}
+                    </td>
                     <td style={{...s.td,color:"#999",fontSize:12}}>{c.reg_date}</td>
                     <td style={{...s.td,color:"#666"}}>{c.manager}</td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           )}
@@ -334,8 +342,7 @@ export default function NoterpClients() {
             <div style={s.dTop}>
               <div>
                 <div style={{display:"flex",gap:4,marginBottom:6}}>
-                  <span style={{...s.badge,...ctStyle(selected.client_type)}}>{selected.client_type}</span>
-                  <span style={{...s.badge,background:"#f5f5f5",color:"#555"}}>{selected.corp_type}</span>
+                  <span style={{...s.badge, background:"#f5f5f5", color:"#555"}}>{selected.corp_type}</span>
                 </div>
                 <div style={s.dName}>{selected.name}</div>
                 <div style={s.dCode}>{selected.code}</div>
@@ -348,43 +355,24 @@ export default function NoterpClients() {
 
             <Sec title="기본정보"/>
             {[
+              ["결산월",      selected.fiscal_month || "12월", false], // 🎯 상세 패널 상단에 결산월 배치
               ["사업자번호",  selected.biz_no,  true],
               [selIdLabel,    selected.id_no,   true],
               ["금감원번호",  selected.fss_no,  false],
               ["대표자",      selected.rep,     false],
               ["개업일",      selected.opening_date, false], 
-              ["시스템 등록일", selected.reg_date, false], 
-              ["주소",        selected.address, false],
-              ["연락처",      selected.contact, false],
-              ["이메일",      selected.email,   false],
-              ["업종",        selected.industry,false],
+              ["등록일",      selected.reg_date, false], 
             ].filter(([,v])=>v).map(([k,v,m])=>(
               <Row key={k} label={k} val={v} mono={m}/>
             ))}
 
             {(selected.service||selected.service_detail||selected.service_desc)&&<>
-              <Sec title="용역구분"/>
+              <Sec title="용역 및 계약정보"/>
               {[
-                ["서비스",    selected.service],
+                ["제공용역",  selected.service],
                 ["상세분류",  selected.service_detail],
                 ["용역내용",  selected.service_desc],
               ].filter(([,v])=>v).map(([k,v])=><Row key={k} label={k} val={v}/>)}
-            </>}
-
-            {(selected.bank_name||selected.account_no)&&<>
-              <Sec title="계좌정보"/>
-              {[
-                ["은행",      selected.bank_name],
-                ["계좌번호",  selected.account_no],
-                ["예금주",    selected.account_holder],
-              ].filter(([,v])=>v).map(([k,v])=><Row key={k} label={k} val={v} mono={k==="계좌번호"}/>)}
-            </>}
-
-            {(selected.manager||selected.memo)&&<>
-              <Sec title="기타"/>
-              {[["담당자",selected.manager],["메모",selected.memo]].filter(([,v])=>v).map(([k,v])=>(
-                <Row key={k} label={k} val={v}/>
-              ))}
             </>}
           </div>
         )}
@@ -401,7 +389,7 @@ export default function NoterpClients() {
 
             {!extract&&(
               <div style={s.tabs}>
-                {["기본","용역","계좌","기타"].map(t=>(
+                {["기본","계좌","기타"].map(t=>(
                   <button key={t} className="tab-btn"
                     style={{...s.tabBtn,...(tab===t?s.tabOn:{})}}
                     onClick={()=>setTab(t)}>{t}</button>
@@ -422,10 +410,28 @@ export default function NoterpClients() {
                     onChange={v=>setF("corp_type",v)}/>
                 </FL>
 
-                <FL label="거래처 유형">
-                  <Radio options={["매출처","매입처","공통"]} value={form.client_type}
-                    onChange={v=>setF("client_type",v)}
-                    colors={CLIENT_TYPES.reduce((a,t)=>({...a,[t.value]:t.color}),{})}/>
+                {/* 🎯 결산월 드롭다운 추가 */}
+                <FL label="결산월">
+                  <select style={s.inp} value={form.fiscal_month} onChange={e=>setF("fiscal_month",e.target.value)}>
+                    {["12월","3월","6월","9월","기타"].map(m=><option key={m}>{m}</option>)}
+                  </select>
+                </FL>
+
+                <FL label="제공 용역 (대분류)">
+                  <select style={{...s.inp, borderColor:"#2563eb", borderWidth: 2}} value={form.service}
+                    onChange={e=>{setF("service",e.target.value); setF("service_detail","");}}>
+                    <option value="">선택</option>
+                    {SERVICE_TYPES.map(sv=><option key={sv}>{sv}</option>)}
+                  </select>
+                </FL>
+
+                <FL label="용역 (상세분류)">
+                  <select style={s.inp} value={form.service_detail}
+                    onChange={e=>setF("service_detail",e.target.value)}
+                    disabled={!form.service||!SERVICE_DETAIL[form.service]?.length}>
+                    <option value="">선택</option>
+                    {(SERVICE_DETAIL[form.service]||[]).map(d=><option key={d}>{d}</option>)}
+                  </select>
                 </FL>
 
                 <FL label="사업자번호">
@@ -454,45 +460,8 @@ export default function NoterpClients() {
                     onChange={e=>setF("reg_date",e.target.value)} disabled />
                 </FL>
 
-                <FL label="연락처">
-                  <In value={form.contact} onChange={v=>setF("contact",v)} ph="02-0000-0000"/>
-                </FL>
-
-                <FL label="이메일">
-                  <In value={form.email} onChange={v=>setF("email",v)} ph="example@company.com"/>
-                </FL>
-
-                <FL label="업종" full>
-                  <In value={form.industry} onChange={v=>setF("industry",v)} ph="제조업 / 플라스틱제품"/>
-                </FL>
-
                 <FL label="주소" full>
                   <In value={form.address} onChange={v=>setF("address",v)} ph="서울시 강남구..."/>
-                </FL>
-              </div>
-            ):tab==="용역"?(
-              <div style={s.grid}>
-                <FL label="서비스 대분류">
-                  <select style={s.inp} value={form.service}
-                    onChange={e=>{setF("service",e.target.value); setF("service_detail","");}}>
-                    <option value="">선택</option>
-                    {SERVICE_TYPES.map(sv=><option key={sv}>{sv}</option>)}
-                  </select>
-                </FL>
-
-                <FL label="상세분류">
-                  <select style={s.inp} value={form.service_detail}
-                    onChange={e=>setF("service_detail",e.target.value)}
-                    disabled={!form.service||!SERVICE_DETAIL[form.service]?.length}>
-                    <option value="">선택</option>
-                    {(SERVICE_DETAIL[form.service]||[]).map(d=><option key={d}>{d}</option>)}
-                  </select>
-                </FL>
-
-                <FL label="용역 내용" full>
-                  <textarea style={{...s.inp,height:100,resize:"vertical"}}
-                    placeholder="예: 2024사업연도 외부감사 및 검토"
-                    value={form.service_desc} onChange={e=>setF("service_desc",e.target.value)}/>
                 </FL>
               </div>
             ):tab==="계좌"?(
@@ -591,4 +560,48 @@ const s = {
   header:    {display:"flex",alignItems:"flex-end",justifyContent:"space-between",padding:"24px 32px 18px",background:"#fff",borderBottom:"1px solid #e5e5e5"},
   brand:     {fontSize:10,fontWeight:700,letterSpacing:4,color:"#2563eb",marginBottom:4},
   pageTitle: {fontSize:21,fontWeight:700},
-  uploadBtn: {background:"#f0f7ff",color:"
+  uploadBtn: {background:"#f0f7ff",color:"#2563eb",border:"1.5px solid #bfdbfe",borderRadius:8,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer"},
+  addBtn:    {background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:600,cursor:"pointer"},
+  toolbar:   {display:"flex",alignItems:"center",gap:8,padding:"12px 32px",background:"#fff",borderBottom:"1px solid #e5e5e5",flexWrap:"wrap"},
+  search:    {flex:1,minWidth:180,border:"1px solid #ddd",borderRadius:8,padding:"8px 14px",fontSize:13,background:"#fafafa",outline:"none"},
+  filters:   {display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"},
+  fBtn:      {border:"1px solid #e5e5e5",borderRadius:20,padding:"4px 12px",fontSize:12,cursor:"pointer",background:"#fff",color:"#888",fontWeight:500},
+  fBtnOn:    {fontWeight:700,borderColor:"currentColor",background:"#f8f9fa",color:"#222"},
+  count:     {fontSize:12,color:"#999",whiteSpace:"nowrap",marginLeft:"auto"},
+  body:      {display:"flex",padding:"20px 32px",gap:20,minHeight:"calc(100vh - 150px)"},
+  tableWrap: {flex:1,overflowX:"auto"},
+  table:     {width:"100%",borderCollapse:"collapse",background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.07)"},
+  thead:     {background:"#f8f9fa"},
+  th:        {padding:"11px 14px",fontSize:11,fontWeight:600,color:"#888",textAlign:"left",borderBottom:"1px solid #eee",whiteSpace:"nowrap",letterSpacing:0.3},
+  tr:        {borderBottom:"1px solid #f5f5f5",cursor:"pointer",transition:"background 0.1s"},
+  trOn:      {background:"#eff6ff"},
+  td:        {padding:"11px 14px",fontSize:13},
+  codeCell:  {whiteSpace:"nowrap"},
+  codeTag:   {fontFamily:"monospace",fontSize:11,fontWeight:700,color:"#2563eb",background:"#eff6ff",padding:"2px 7px",borderRadius:5},
+  mono:      {fontFamily:"monospace",letterSpacing:0.5},
+  badge:     {fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:20,display:"inline-block",whiteSpace:"nowrap"},
+  svcTag:    {fontSize:11,padding:"3px 8px",borderRadius:6,display:"inline-block",fontWeight:600},
+  projTag:   {fontSize:11, background:"#f1f5f9", color:"#475569", padding:"2px 8px", borderRadius:10, fontWeight:600}, // 🎯 프로젝트 수 뱃지 스타일
+  empty:     {textAlign:"center",color:"#bbb",fontSize:14,padding:"80px 0"},
+  detail:    {width:280,background:"#fff",borderRadius:12,padding:18,boxShadow:"0 1px 4px rgba(0,0,0,0.07)",alignSelf:"flex-start",position:"sticky",top:20,flexShrink:0},
+  dTop:      {display:"flex",justifyContent:"space-between",marginBottom:14,paddingBottom:14,borderBottom:"1px solid #f0f0f0"},
+  dName:     {fontSize:15,fontWeight:700,lineHeight:1.3,marginBottom:3},
+  dCode:     {fontSize:11,color:"#2563eb",fontFamily:"monospace",fontWeight:700},
+  editBtn:   {background:"#f0f4ff",color:"#2563eb",border:"none",borderRadius:6,padding:"5px 10px",fontSize:11,fontWeight:600,cursor:"pointer"},
+  delBtn:    {background:"#fff1f0",color:"#ef4444",border:"none",borderRadius:6,padding:"5px 10px",fontSize:11,fontWeight:600,cursor:"pointer"},
+  overlay:   {position:"fixed",inset:0,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000},
+  modal:     {background:"#fff",borderRadius:14,padding:"26px 26px 22px",width:600,maxWidth:"94vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(0,0,0,0.18)"},
+  mHead:     {display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16},
+  mTitle:    {fontSize:17,fontWeight:700},
+  extracting:{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#2563eb",fontWeight:500},
+  extBody:   {textAlign:"center",color:"#888",fontSize:14,padding:"44px 0"},
+  tabs:      {display:"flex",gap:0,marginBottom:20,borderBottom:"1px solid #eee"},
+  tabBtn:    {background:"none",border:"none",borderBottom:"2px solid transparent",padding:"8px 18px",fontSize:13,fontWeight:500,color:"#888",cursor:"pointer",marginBottom:-1,transition:"color 0.15s"},
+  tabOn:     {color:"#2563eb",borderBottomColor:"#2563eb",fontWeight:700},
+  grid:      {display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 20px"},
+  inp:       {border:"1px solid #ddd",borderRadius:7,padding:"8px 12px",fontSize:13,fontFamily:"inherit",width:"100%",boxSizing:"border-box"},
+  mFoot:     {display:"flex",justifyContent:"flex-end",gap:8,marginTop:22,paddingTop:16,borderTop:"1px solid #f0f0f0"},
+  cancelBtn: {background:"#f5f5f5",color:"#555",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:600,cursor:"pointer"},
+  saveBtn:   {background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"9px 22px",fontSize:13,fontWeight:600,cursor:"pointer"},
+  toast:     {position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#1a1a1a",color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:13,fontWeight:500,zIndex:2000,boxShadow:"0 4px 16px rgba(0,0,0,0.2)"},
+};
