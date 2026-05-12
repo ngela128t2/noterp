@@ -4,14 +4,13 @@ export default async function handler(req, res) {
   try {
     const { prompt, image, text, system } = req.body;
     
-    // AI가 JSON 형태로만 답하도록 시스템 프롬프트에 강력하게 세뇌(?) 시킵니다.
+    // 🎯 제 실수(특수기호 오류)를 완벽하게 고친 프롬프트 부분입니다.
     let finalPrompt = "";
     if (system) finalPrompt += `[System]\n${system}\n\n`;
-    finalPrompt += `[User]\n${prompt || text || "사업자등록증 정보를 JSON으로 추출해."}\n반드시 순수한 JSON 형식으로만 응답하고, 마크다운(```json)이나 다른 설명은 절대 덧붙이지 마.`;
+    finalPrompt += `[User]\n${prompt || text || "사업자등록증 정보를 JSON으로 추출해."}\n반드시 순수한 JSON 형식으로만 응답하고, 마크다운 기호나 다른 설명은 절대 덧붙이지 마.`;
 
     const parts = [{ text: finalPrompt }];
 
-    // 사진이 있을 경우 처리 로직
     if (image && image.base64) {
       const cleanBase64 = image.base64.includes(",") 
         ? image.base64.split(",")[1] 
@@ -26,8 +25,6 @@ export default async function handler(req, res) {
     }
 
     const API_KEY = process.env.GEMINI_API_KEY;
-    
-    // 🎯 가장 안정적인 주소 조합 (v1beta + gemini-1.5-flash)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
     const response = await fetch(url, {
@@ -35,7 +32,6 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
         contents: [{ parts }]
-        // 옵션 충돌을 막기 위해 generationConfig는 깔끔하게 비웠습니다.
       })
     });
 
@@ -46,9 +42,8 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: data.error?.message || "잘못된 요청입니다." });
     }
 
-    // 결과값에서 혹시 모를 마크다운 찌꺼기 제거
     let resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    resultText = resultText.replace(/```json|```/g, "").trim();
+    resultText = resultText.replace(/```json|```/g, "").trim(); // 혹시 모를 찌꺼기 제거
     
     res.status(200).json({ text: resultText });
 
