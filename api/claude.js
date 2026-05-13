@@ -13,6 +13,7 @@ export default async function handler(req, res) {
 
     const parts = [{ text: finalPrompt }];
 
+    // 사진(OCR) 완벽 대응 (대소문자 camelCase 문법 준수)
     if (image && image.base64) {
       const cleanBase64 = image.base64.includes(",") 
         ? image.base64.split(",")[1] 
@@ -26,8 +27,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // 🎯 무료로 넉넉하게 쓸 수 있는 1.5-flash 버전으로 완전히 고정했습니다!
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    // 🎯 파트너님 말씀대로 현재 활성화된 최신 무료 모델인 2.5-flash로 고정합니다.
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -35,6 +36,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({ contents: [{ parts }] })
     });
 
+    // 구글 API 거절 시 방어막
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Google API Error:", errorText);
@@ -44,6 +46,7 @@ export default async function handler(req, res) {
     const data = await response.json();
     let resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
+    // 메모/OCR의 JSON 응답과 노트의 일반 텍스트 응답을 스마트하게 분리
     if (resultText.includes("```json")) {
       resultText = resultText.replace(/```json|```/g, "").trim();
     } else if (resultText.includes("```")) {
