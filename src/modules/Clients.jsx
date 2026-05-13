@@ -614,3 +614,161 @@ const s = {
   saveBtn:   {background:"#2563eb",color:"#fff",border:"none",borderRadius:8,padding:"9px 22px",fontSize:13,fontWeight:600,cursor:"pointer"},
   toast:     {position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#1a1a1a",color:"#fff",padding:"10px 20px",borderRadius:8,fontSize:13,fontWeight:500,zIndex:2000,boxShadow:"0 4px 16px rgba(0,0,0,0.2)"},
 };
+
+
+import React, { useState } from "react";
+
+export default function ClientRegistration() {
+  const [imageFile, setImageFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resultData, setResultData] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // 📸 1. 이미지 강제 압축 함수 (Vercel 4.5MB 제한 돌파용)
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 1000; // 가로 최대 1000px로 축소
+          const scaleSize = MAX_WIDTH / img.width;
+          
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          // 품질을 70%로 낮춰서 용량 다이어트
+          const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+          resolve({
+            base64: compressedBase64,
+            mimeType: "image/jpeg"
+          });
+        };
+      };
+    });
+  };
+
+  // 📎 2. 파일 선택 시 미리보기 세팅
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      setPreviewUrl(URL.createObjectURL(file)); // 화면에 사진 띄우기
+      setResultData(null);
+      setErrorMessage("");
+    }
+  };
+
+  // 🚀 3. AI 분석 요청 (압축 -> 전송 -> 결과 파싱)
+  const handleAnalyze = async () => {
+    if (!imageFile) {
+      alert("사업자등록증 사진을 먼저 선택해주세요!");
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
+
+    try {
+      // 사진 압축 실행! (몇 MB짜리 사진도 순식간에 KB 단위로 줄어듭니다)
+      const compressedImage = await compressImage(imageFile);
+
+      // 백엔드로 전송
+      const response = await fetch("/api/claude", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system: "너는 회계법인의 꼼꼼한 어시스턴트야. 주어진 사업자등록증 이미지에서 '상호명(회사명)', '등록번호', '대표자명', '개업연월일', '사업장소재지'를 추출해서 반드시 JSON 형식으로만 답해줘. 마크다운(```json) 없이 순수한 JSON 객체만 반환해.",
+          image: {
+            base64: compressedImage.base64,
+            mimeType: compressedImage.mimeType
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`서버 에러: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // JSON 텍스트를 실제 자바스크립트 객체로 변환
+      const parsedData = JSON.parse(data.text);
+      setResultData(parsedData);
+
+    } catch (error) {
+      console.error("OCR 분석 실패:", error);
+      setErrorMessage("AI 분석 중 오류가 발생했습니다. 사진을 다시 확인해주세요.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto" }}>
+      <h2>🏢 신규 거래처 등록 (AI 자동입력)</h2>
+
+      {/* 파일 업로드 영역 */}
+      <div style={{ marginBottom: "20px" }}>
+        <input 
+          type="file" 
+          accept="image/*" 
+          onChange={handleFileChange} 
+          style={{ display: "block", marginBottom: "10px" }}
+        />
+        {previewUrl && (
+          <img 
+            src={previewUrl} 
+            alt="사업자등록증 미리보기" 
+            style={{ maxWidth: "100%", height: "auto", border: "1px solid #ccc" }} 
+          />
+        )}
+      </div>
+
+      {/* 실행 버튼 */}
+      <button 
+        onClick={handleAnalyze} 
+        disabled={loading}
+        style={{
+          padding: "10px 20px",
+          backgroundColor: loading ? "#ccc" : "#007bff",
+          color: "white",
+          border: "none",
+          borderRadius: "5px",
+          cursor: loading ? "not-allowed" : "pointer"
+        }}
+      >
+        {loading ? "✨ AI가 사업자등록증을 읽는 중..." : "✨ AI로 정보 추출하기"}
+      </button>
+
+      {/* 에러 메시지 */}
+      {errorMessage && (
+        <p style={{ color: "red", marginTop: "10px" }}>{errorMessage}</p>
+      )}
+
+      {/* 결과 출력 영역 (입력 폼과 연결하기 좋게 세팅) */}
+      {resultData && (
+        <div style={{ marginTop: "30px", padding: "20px", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
+          <h3>✅ 추출 완료!</h3>
+          <ul style={{ listStyle: "none", padding: 0, lineHeight: "2" }}>
+            <li><strong>상호명:</strong> {resultData["상호명"] || resultData["상호"] || resultData["회사명"]}</li>
+            <li><strong>등록번호:</strong> {resultData["등록번호"] || resultData["사업자등록번호"]}</li>
+            <li><strong>대표자명:</strong> {resultData["대표자명"] || resultData["성명"]}</li>
+            <li><strong>개업연월일:</strong> {resultData["개업연월일"]}</li>
+            <li><strong>소재지:</strong> {resultData["사업장소재지"] || resultData["소재지"]}</li>
+          </ul>
+          <p style={{ fontSize: "12px", color: "#666", marginTop: "10px" }}>
+            * 위 정보를 DB(noterp_client)에 저장하는 로직을 여기에 연결하세요!
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
