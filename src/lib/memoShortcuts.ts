@@ -51,6 +51,17 @@ function normalizeDateToken(token: string) {
   const weekMatch = trimmed.match(/^(이번\s*주|다음\s*주)\s*(일요일|월요일|화요일|수요일|목요일|금요일|토요일|일|월|화|수|목|금|토)$/)
   if (weekMatch) return getWeekDate(weekMatch[1], weekMatch[2])
 
+  // bare 요일 → 오늘 이후 가장 가까운 해당 요일
+  if (trimmed in WEEKDAYS) {
+    const targetDay = WEEKDAYS[trimmed]
+    const todayDay = today.getDay()
+    let daysAhead = targetDay - todayDay
+    if (daysAhead <= 0) daysAhead += 7
+    const date = new Date(today)
+    date.setDate(today.getDate() + daysAhead)
+    return toDateString(date)
+  }
+
   const iso = trimmed.match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/)
   if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`
 
@@ -95,7 +106,10 @@ export function parseMemoShortcuts(text: string): MemoShortcutHints {
   const dateTokens = [
     ...Array.from(text.matchAll(/@\[([^\]]+)\]/g), match => match[1]),
     ...Array.from(text.matchAll(/@(\d{4}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./월\s]\d{1,2}일?|오늘|내일|모레|(이번\s*주|다음\s*주)\s*(?:일요일|월요일|화요일|수요일|목요일|금요일|토요일|일|월|화|수|목|금|토))/g), match => match[1]),
+    // @ 없이도 날짜 표현 캡처
     ...Array.from(text.matchAll(/(오늘|내일|모레|(이번\s*주|다음\s*주)\s*(?:일요일|월요일|화요일|수요일|목요일|금요일|토요일|일|월|화|수|목|금|토))/g), match => match[1]),
+    // bare 요일 (이번주/다음주 없이)
+    ...Array.from(text.matchAll(/(?<![주\w])(일요일|월요일|화요일|수요일|목요일|금요일|토요일)/g), match => match[1]),
   ]
 
   const timeTokens = [

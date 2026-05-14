@@ -219,9 +219,23 @@ export default function MemoPage() {
 
       const projectByName = buildNameMap((existingProjects ?? []) as ProjectRow[])
       const hintedClient = explicitClientNames[0] ? clientByName.get(normalizeMemoName(explicitClientNames[0])) : null
-      const explicitProjects = shortcuts.projects.map(name => ({ name, client_name: explicitClientNames[0] ?? null, milestone: memoTitle }))
-      const parsedExistingProjects = (parsed.projects ?? []).filter(project => projectByName.has(normalizeMemoName(project.name)))
-      const projectInputs = [...explicitProjects, ...parsedExistingProjects]
+
+      // 중복 방지: shortcut + Claude 파싱 결과를 name 기준으로 병합
+      const projectInputMap = new Map<string, { name: string; client_name: string | null; milestone: string | null; milestones?: Array<{ title: string; due_date: string | null }> | null }>()
+      for (const name of shortcuts.projects) {
+        projectInputMap.set(normalizeMemoName(name), { name, client_name: explicitClientNames[0] ?? null, milestone: memoTitle, milestones: null })
+      }
+      const parsedExistingProjects = (parsed.projects ?? []).filter(p => projectByName.has(normalizeMemoName(p.name)))
+      for (const p of parsedExistingProjects) {
+        const key = normalizeMemoName(p.name)
+        const existing = projectInputMap.get(key)
+        if (existing) {
+          projectInputMap.set(key, { ...existing, milestones: p.milestones ?? null, milestone: p.milestone ?? existing.milestone })
+        } else {
+          projectInputMap.set(key, { name: p.name, client_name: p.client_name, milestone: p.milestone ?? memoTitle, milestones: p.milestones ?? null })
+        }
+      }
+      const projectInputs = Array.from(projectInputMap.values())
       const touchedProjectIds = new Set<string>()
       const milestoneCache = new Map<string, MilestoneRow[]>()
 
@@ -276,11 +290,17 @@ export default function MemoPage() {
       const primaryProjectId = primaryProject?.id ?? null
       const primaryClientId = hintedClient?.id ?? primaryProject?.client_id ?? null
 
-      const eventInputs = parsed.events?.length
-        ? parsed.events.map(event => ({ ...event, date: event.date ?? shortcuts.dates[0] ?? null, time: event.time ?? shortcuts.times[0] ?? null }))
-        : shortcuts.dates.length
-          ? [{ title: memoTitle, date: shortcuts.dates[0], time: shortcuts.times[0] ?? null, location: null, client_name: explicitClientNames[0] ?? null }]
-          : []
+      // 날짜 fallback 체인: shortcuts.dates → parsed milestones → primaryDueDate
+      const bestDate = shortcuts.dates[0]
+        ?? parsed.projects?.flatMap(p => p.milestones ?? []).find(m => m.due_date)?.due_date
+        ?? primaryDueDate
+
+      const eventInputs: Array<{ title: string; date: string | null; time: string | null; location: string | null; client_name: string | null }> =
+        parsed.events?.length
+          ? parsed.events.map(e => ({ ...e, date: e.date ?? bestDate, time: e.time ?? shortcuts.times[0] ?? null }))
+          : (bestDate || shortcuts.times.length)
+            ? [{ title: memoTitle, date: bestDate, time: shortcuts.times[0] ?? null, location: null, client_name: explicitClientNames[0] ?? null }]
+            : []
 
       for (const event of eventInputs) {
         if (!event.date) continue
