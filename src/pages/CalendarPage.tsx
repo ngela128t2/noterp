@@ -4,52 +4,74 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import { useCalendarEvents, useCreateCalendarEvent, useDeleteCalendarEvent } from '../hooks/useCalendarEvents'
+import { useClients } from '../hooks/useClients'
+import { useProjects } from '../hooks/useProjects'
 import type { CalendarEvent } from '../types'
-
-interface EventFormState {
-  title: string
-  date: string
-  time: string
-  location: string
-}
 
 type CalendarItem = CalendarEvent & {
   clients: { name: string } | null
   projects?: { name: string } | null
 }
 
-const EMPTY_FORM: EventFormState = { title: '', date: '', time: '', location: '' }
-const inputClass = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
+interface FormState {
+  title: string
+  date: string
+  time: string
+  location: string
+  client_id: string
+  project_id: string
+}
+
+const EMPTY: FormState = { title: '', date: '', time: '', location: '', client_id: '', project_id: '' }
+const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
 export default function CalendarPage() {
   const { data: events = [], isLoading } = useCalendarEvents()
+  const { data: clients = [] } = useClients()
+  const { data: projects = [] } = useProjects()
   const createEvent = useCreateCalendarEvent()
   const deleteEvent = useDeleteCalendarEvent()
 
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState<EventFormState>(EMPTY_FORM)
-  const [selected, setSelected] = useState<CalendarItem | null>(null)
+  const [form, setForm] = useState<FormState>(EMPTY)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)   // 날짜 클릭 → 하단 패널
+  const [selectedEvent, setSelectedEvent] = useState<CalendarItem | null>(null) // 이벤트 클릭 → 상세
 
-  const fcEvents = events.map(event => ({
-    id: event.id,
-    title: event.clients ? `[${event.clients.name}] ${event.title}` : event.title,
-    start: event.time ? `${event.date}T${event.time}` : event.date,
-    allDay: !event.time,
-    extendedProps: { original: event },
+  const fcEvents = events.map(e => ({
+    id: e.id,
+    title: e.clients ? `[${e.clients.name}] ${e.title}` : e.title,
+    start: e.time ? `${e.date}T${e.time}` : e.date,
+    allDay: !e.time,
+    extendedProps: { original: e },
   }))
 
+  // 선택된 날의 일정 목록
+  const dayEvents = selectedDate
+    ? events.filter(e => e.date === selectedDate).sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))
+    : []
+
+  // 날짜 셀 클릭 → 해당 날 일정 표시
   const handleDateClick = (info: { dateStr: string }) => {
-    setForm({ ...EMPTY_FORM, date: info.dateStr })
+    setSelectedDate(info.dateStr)
+    setSelectedEvent(null)
+  }
+
+  // 날짜 숫자 클릭 → 입력 폼 열기
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleNavLinkDayClick = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0]
+    setForm({ ...EMPTY, date: dateStr })
     setModal(true)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEventClick = (info: any) => {
-    setSelected(info.event.extendedProps.original as CalendarItem)
+    setSelectedEvent(info.event.extendedProps.original as CalendarItem)
+    setSelectedDate(null)
   }
 
-  const handleSave = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const handleSave = (e: React.SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault()
     createEvent.mutate(
       {
         user_id: '',
@@ -57,11 +79,17 @@ export default function CalendarPage() {
         date: form.date,
         time: form.time || null,
         location: form.location || null,
-        client_id: null,
-        project_id: null,
+        client_id: form.client_id || null,
+        project_id: form.project_id || null,
       },
-      { onSuccess: () => { setModal(false); setForm(EMPTY_FORM) } },
+      { onSuccess: () => { setModal(false); setForm(EMPTY) } },
     )
+  }
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr)
+    const days = ['일', '월', '화', '수', '목', '금', '토']
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`
   }
 
   if (isLoading) return <div className="p-6 text-sm text-gray-400">불러오는 중...</div>
@@ -71,7 +99,7 @@ export default function CalendarPage() {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-gray-900">캘린더</h2>
         <button
-          onClick={() => { setForm(EMPTY_FORM); setModal(true) }}
+          onClick={() => { setForm(EMPTY); setModal(true) }}
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg"
         >
           + 일정 추가
@@ -86,6 +114,8 @@ export default function CalendarPage() {
           locale="ko"
           buttonText={{ today: '오늘', month: '월', week: '주' }}
           events={fcEvents}
+          navLinks={true}
+          navLinkDayClick={handleNavLinkDayClick}
           dateClick={handleDateClick}
           eventClick={handleEventClick}
           height="auto"
@@ -95,56 +125,97 @@ export default function CalendarPage() {
       </div>
 
       <style>{`
-        .calendar-surface .fc {
-          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          color: #111827;
-        }
-        .calendar-surface .fc-toolbar-title {
-          font-size: 1.15rem;
-          font-weight: 800;
-          letter-spacing: 0;
-        }
-        .calendar-surface .fc-button {
-          border-radius: 8px;
-          font-size: 12px;
-          font-weight: 600;
-          background: #4f46e5;
-          border-color: #4f46e5;
-        }
+        .calendar-surface .fc { font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; color: #111827; }
+        .calendar-surface .fc-toolbar-title { font-size: 1.15rem; font-weight: 800; }
+        .calendar-surface .fc-button { border-radius: 8px; font-size: 12px; font-weight: 600; background: #4f46e5; border-color: #4f46e5; }
         .calendar-surface .fc-col-header-cell-cushion,
-        .calendar-surface .fc-daygrid-day-number {
-          font-size: 12px;
-          font-weight: 600;
-          color: #374151;
-          text-decoration: none;
-        }
-        .calendar-surface .fc-event {
-          border-radius: 6px;
-          border: 0;
-          padding: 1px 3px;
-          font-size: 12px;
-          font-weight: 600;
-        }
+        .calendar-surface .fc-daygrid-day-number { font-size: 12px; font-weight: 600; color: #374151; text-decoration: none; }
+        .calendar-surface .fc-daygrid-day-number:hover { color: #4f46e5; text-decoration: underline; cursor: pointer; }
+        .calendar-surface .fc-event { border-radius: 6px; border: 0; padding: 1px 3px; font-size: 12px; font-weight: 600; }
       `}</style>
 
+      {/* 날짜 클릭 → 해당 날 일정 패널 */}
+      {selectedDate && (
+        <div className="mt-4 bg-white rounded-xl border border-gray-200 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-800">
+              {formatDate(selectedDate)} 일정
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setForm({ ...EMPTY, date: selectedDate }); setModal(true) }}
+                className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium"
+              >
+                + 이 날 일정 추가
+              </button>
+              <button onClick={() => setSelectedDate(null)} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+            </div>
+          </div>
+
+          {dayEvents.length === 0 ? (
+            <p className="text-sm text-gray-400">이 날 등록된 일정이 없습니다.</p>
+          ) : (
+            <ul className="space-y-2">
+              {dayEvents.map(e => (
+                <li
+                  key={e.id}
+                  className="flex items-start gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 cursor-pointer"
+                  onClick={() => { setSelectedEvent(e as CalendarItem); setSelectedDate(null) }}
+                >
+                  <span className="text-xs text-indigo-500 font-medium w-12 shrink-0 pt-0.5">
+                    {e.time ? e.time.slice(0, 5) : '종일'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{e.title}</p>
+                    <div className="flex gap-2 text-xs text-gray-400 mt-0.5">
+                      {(e as CalendarItem).clients && <span>🏢 {(e as CalendarItem).clients!.name}</span>}
+                      {e.location && <span>📍 {e.location}</span>}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* 일정 추가 모달 */}
       {modal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">일정 추가</h3>
             <form onSubmit={handleSave} className="space-y-3">
               <Field label="제목 *">
-                <input required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className={inputClass} placeholder="미팅 제목" />
+                <input
+                  required
+                  value={form.title}
+                  onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  className={inp}
+                  placeholder="미팅 제목"
+                />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="날짜 *">
-                  <input type="date" required value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} className={inputClass} />
+                  <input type="date" required value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} className={inp} />
                 </Field>
                 <Field label="시간">
-                  <input type="time" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} className={inputClass} />
+                  <input type="time" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} className={inp} />
                 </Field>
               </div>
               <Field label="장소">
-                <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className={inputClass} placeholder="회의실 A" />
+                <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className={inp} placeholder="회의실 A" />
+              </Field>
+              <Field label="거래처">
+                <select value={form.client_id} onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))} className={inp}>
+                  <option value="">선택 안 함</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field>
+              <Field label="프로젝트">
+                <select value={form.project_id} onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))} className={inp}>
+                  <option value="">선택 안 함</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
               </Field>
               <div className="flex justify-end gap-2 pt-1">
                 <button type="button" onClick={() => setModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">취소</button>
@@ -155,19 +226,25 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {selected && (
+      {/* 이벤트 상세 모달 */}
+      {selectedEvent && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-3">{selected.title}</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-3">{selectedEvent.title}</h3>
             <div className="space-y-1.5 text-sm text-gray-600 mb-5">
-              <p>{selected.date}{selected.time ? ` ${selected.time}` : ''}</p>
-              {selected.location && <p>{selected.location}</p>}
-              {selected.clients && <p>거래처 {selected.clients.name}</p>}
-              {selected.projects && <p>프로젝트 {selected.projects.name}</p>}
+              <p>📅 {formatDate(selectedEvent.date)}{selectedEvent.time ? ` ${selectedEvent.time.slice(0, 5)}` : ''}</p>
+              {selectedEvent.location && <p>📍 {selectedEvent.location}</p>}
+              {selectedEvent.clients && <p>🏢 {selectedEvent.clients.name}</p>}
+              {selectedEvent.projects && <p>📁 {selectedEvent.projects.name}</p>}
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => { deleteEvent.mutate(selected.id); setSelected(null) }} className="px-4 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg">삭제</button>
-              <button onClick={() => setSelected(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">닫기</button>
+              <button
+                onClick={() => { deleteEvent.mutate(selectedEvent.id); setSelectedEvent(null) }}
+                className="px-4 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg"
+              >
+                삭제
+              </button>
+              <button onClick={() => setSelectedEvent(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">닫기</button>
             </div>
           </div>
         </div>
