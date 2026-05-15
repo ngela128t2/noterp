@@ -77,7 +77,7 @@ export default function LoginPage() {
             <span className="text-white font-semibold">AI Context Operating System</span>을 만듭니다.
           </p>
         </div>
-        <p className="text-indigo-400 text-xs">© 2026 Noterp · 회계법인 성지</p>
+        <p className="text-indigo-400 text-xs">© 2026 Noterp</p>
       </div>
 
       {/* 오른쪽 로그인 폼 */}
