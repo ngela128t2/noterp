@@ -15,7 +15,7 @@ export default function Header({ onMenuClick, title }: Props) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
-      <span className="text-base font-bold text-indigo-600">Noterp</span>
+      <span className="text-xl font-bold text-indigo-600">Noterp</span>
       <span className="text-sm text-gray-400">/ {title}</span>
       <span
         className="ml-auto text-gray-400 select-none"

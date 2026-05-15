@@ -31,7 +31,7 @@ export default function Sidebar({ open, onClose, onSearchOpen }: Props) {
       ${open ? 'w-52' : 'w-0 lg:w-52'}
     `}>
       <div className="px-5 py-5 border-b border-gray-100 flex items-center justify-between w-52">
-        <span className="text-base font-bold text-indigo-600">Noterp</span>
+        <span className="text-xl font-bold text-indigo-600">Noterp</span>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5 w-52">
