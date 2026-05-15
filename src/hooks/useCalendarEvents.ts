@@ -85,6 +85,23 @@ export function useCreateCalendarEvent() {
   })
 }
 
+export function useUpdateCalendarEvent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...input }: Partial<CalendarEvent> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .update(input)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data as CalendarEvent
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['calendar_events'] }),
+  })
+}
+
 export function useDeleteCalendarEvent() {
   const qc = useQueryClient()
   return useMutation({

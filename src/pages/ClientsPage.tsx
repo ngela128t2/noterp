@@ -229,7 +229,7 @@ export default function ClientsPage() {
                         <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{client.contract_date ?? '-'}</td>
                         <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{client.created_at.slice(0, 10)}</td>
                         <td className="px-4 py-3">
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={e => { e.stopPropagation(); setOcrInitial(undefined); setModal(client) }}
                               className="text-xs text-gray-400 hover:text-indigo-600 px-1.5 py-1 rounded hover:bg-indigo-50"

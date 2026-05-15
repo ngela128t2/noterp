@@ -50,9 +50,40 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="absolute top-5 left-6 text-base font-bold text-indigo-600">Noterp</div>
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 w-full max-w-sm">
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* 왼쪽 브랜드 패널 — 데스크톱 전용 */}
+      <div className="hidden lg:flex flex-col justify-between w-1/2 bg-indigo-600 px-16 py-14">
+        <span className="text-2xl font-bold text-white">Noterp</span>
+        <div>
+          <p className="text-indigo-200 text-base leading-relaxed mb-8">
+            우리의 업무는 데이터가 아니라<br />
+            기억과 흐름 속에서 움직입니다.
+          </p>
+          <p
+            className="text-white text-3xl leading-snug mb-2"
+            style={{ fontFamily: "'Dancing Script', cursive" }}
+          >
+            Note Everything.
+          </p>
+          <p
+            className="text-white text-3xl leading-snug mb-10"
+            style={{ fontFamily: "'Dancing Script', cursive" }}
+          >
+            This is Not Just ERP.
+          </p>
+          <p className="text-indigo-200 text-sm leading-relaxed">
+            NOTERP는 흩어진 기록과 맥락을 연결해<br />
+            사람의 업무 흐름을 기억하는<br />
+            <span className="text-white font-semibold">AI Context Operating System</span>을 만듭니다.
+          </p>
+        </div>
+        <p className="text-indigo-400 text-xs">© 2026 Noterp · 회계법인 성지</p>
+      </div>
+
+      {/* 오른쪽 로그인 폼 */}
+      <div className="flex-1 flex items-center justify-center bg-gray-50 px-6">
+        <div className="absolute top-5 left-6 text-base font-bold text-indigo-600 lg:hidden">Noterp</div>
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 w-full max-w-sm">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-gray-900">로그인</h1>
         </div>
@@ -103,6 +134,7 @@ export default function LoginPage() {
             {mode === 'login' ? '회원가입' : '로그인'}
           </button>
         </p>
+      </div>
       </div>
     </div>
   )
