@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
+
 import { useReviewBadges } from '../../hooks/useReviewBadges'
 import { supabase } from '../../lib/supabase'
 
@@ -31,7 +32,7 @@ export default function Sidebar({ open, onClose, onSearchOpen }: Props) {
       ${open ? 'w-52' : 'w-0 lg:w-52'}
     `}>
       <div className="px-5 py-5 border-b border-gray-100 flex items-center justify-between w-52">
-        <span className="text-xl font-bold text-indigo-600">Noterp</span>
+        <Link to="/" className="text-2xl font-bold text-indigo-600 hover:text-indigo-700 transition-colors">Noterp</Link>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5 w-52">
