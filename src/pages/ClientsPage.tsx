@@ -5,7 +5,7 @@ import { extractFromBusinessLicense } from '../lib/gemini'
 import ClientFormModal from '../components/clients/ClientFormModal'
 import type { Client } from '../types'
 
-const SERVICE_FILTERS = ['전체', '세무대리', '외부감사', '자문', '컨설팅', '한공회', '강의', '기타']
+const SERVICE_FILTERS = ['전체', '외부감사', '자문', '컨설팅', '한공회', '강의', '기타', '세무대리']
 
 type ModalState = 'create' | Client | null
 
@@ -137,9 +137,13 @@ export default function ClientsPage() {
                 key={item}
                 onClick={() => setFilter(item)}
                 className={`px-3 py-1.5 text-xs rounded-full border font-medium transition-colors whitespace-nowrap ${
-                  filter === item
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 bg-white'
+                  item === '세무대리'
+                    ? filter === item
+                      ? 'bg-amber-500 text-white border-amber-500'
+                      : 'border-amber-300 text-amber-600 hover:bg-amber-50 bg-white'
+                    : filter === item
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 bg-white'
                 }`}
               >
                 {item}
