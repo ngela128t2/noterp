@@ -19,7 +19,7 @@ export default function Header({ onMenuClick, title }: Props) {
       <span className="text-sm text-gray-400">/ {title}</span>
       <span
         className="ml-auto text-gray-400 select-none"
-        style={{ fontFamily: "'Dancing Script', cursive", fontSize: '0.85rem', letterSpacing: '0.01em' }}
+        style={{ fontFamily: "'Dancing Script', cursive", fontSize: '1.15rem', letterSpacing: '0.01em' }}
       >
         Note everything, Not just ERP.
       </span>
