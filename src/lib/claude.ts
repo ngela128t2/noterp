@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ParsedResult } from '../types'
 import { formatShortcutHints, hasMemoShortcuts, type MemoShortcutHints } from './memoShortcuts'
+import { safeParseMemoResult } from './schemas'
 
 const client = new Anthropic({
   apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
@@ -99,5 +100,5 @@ export async function parseMemo(text: string, shortcuts?: MemoShortcutHints): Pr
   const jsonMatch = raw.match(/\{[\s\S]*\}/)
   if (!jsonMatch) throw new Error(`JSON 추출 실패: ${raw.slice(0, 100)}`)
 
-  return JSON.parse(jsonMatch[0]) as ParsedResult
+  return safeParseMemoResult(JSON.parse(jsonMatch[0])) as ParsedResult
 }
