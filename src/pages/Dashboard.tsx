@@ -6,7 +6,7 @@ import { useDashboardStats } from '../hooks/useDashboard'
 import { useDeadlineDashboardStats } from '../hooks/useDeadlines'
 import { useOpenLoops } from '../hooks/useOpenLoops'
 import { useToggleTodo } from '../hooks/useTodos'
-import { generateDailyBriefing } from '../lib/claude'
+import { generateBriefingEdge as generateDailyBriefing } from '../lib/edgeFunctions'
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useClients } from '../../hooks/useClients'
 import { useProjects } from '../../hooks/useProjects'
-import { parseMemo } from '../../lib/claude'
+import { parseMemoEdge as parseMemo } from '../../lib/edgeFunctions'
 import { hasMemoShortcuts, parseMemoShortcuts } from '../../lib/memoShortcuts'
 import type { ParsedResult } from '../../types'
 

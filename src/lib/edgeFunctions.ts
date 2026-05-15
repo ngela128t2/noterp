@@ -3,6 +3,18 @@ import { safeParseMemoResult } from './schemas'
 import type { ParsedResult } from '../types'
 import { formatShortcutHints, hasMemoShortcuts, type MemoShortcutHints } from './memoShortcuts'
 
+export async function generateWorkspaceSummaryEdge(
+  contextName: string,
+  contextType: string,
+  items: string
+): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('workspace-summary', {
+    body: { contextName, contextType, items },
+  })
+  if (error) throw new Error(`Edge Function 오류: ${error.message}`)
+  return data.text ?? ''
+}
+
 export async function parseMemoEdge(text: string, shortcuts?: MemoShortcutHints): Promise<ParsedResult> {
   const today = new Date().toISOString().split('T')[0]
   const shortcutText = shortcuts && hasMemoShortcuts(shortcuts)

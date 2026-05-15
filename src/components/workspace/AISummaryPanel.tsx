@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import Anthropic from '@anthropic-ai/sdk'
+import { generateWorkspaceSummaryEdge } from '../../lib/edgeFunctions'
 import type { TimelineItem } from '../../hooks/useContextTimeline'
-
-const ai = new Anthropic({ apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY, dangerouslyAllowBrowser: true })
 
 const CACHE_TTL = 60 * 60 * 1000
 
@@ -74,21 +72,18 @@ export default function AISummaryPanel({ contextId, contextName, contextType, it
     setSummary(null)
 
     const context = items.slice(0, 20).map(serialize).join('\n')
-    ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      system: `회계법인 업무 비서. ${contextType === 'client' ? '거래처' : '프로젝트'} "${contextName}"의 업무 흐름을 4~6개 항목으로 복원하세요.\n각 항목 앞에 반드시 아래 마커 중 하나를 붙이세요:\n  [Done]        완료된 일\n  [In Progress] 현재 진행·예정 중인 일\n  [Pending]     아직 시작 안 됨·미확정·follow-up 필요\n형식: "[마커] 한 줄 행동 중심 텍스트"\n예시: "[Done] 감사보고서 제출 완료", "[In Progress] 담당자 미팅 일정 진행 중", "[Pending] 수임료 납부 확인 필요"`,
-      messages: [{ role: 'user', content: `최근 활동 (최신순):\n${context}` }],
-    }).then(({ content }) => {
-      if (cancelled) return
-      const text = content[0].type === 'text' ? content[0].text : ''
-      setSummary(text)
-      writeCache(key, text)
-    }).catch(() => {
-      if (!cancelled) setSummary('흐름 복원 중 오류가 발생했습니다.')
-    }).finally(() => {
-      if (!cancelled) setLoading(false)
-    })
+    generateWorkspaceSummaryEdge(contextName, contextType, context)
+      .then(text => {
+        if (cancelled) return
+        setSummary(text)
+        writeCache(key, text)
+      })
+      .catch(() => {
+        if (!cancelled) setSummary('흐름 복원 중 오류가 발생했습니다.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
 
     return () => { cancelled = true }
   }, [contextId, contextName, items.length]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -97,29 +92,24 @@ export default function AISummaryPanel({ contextId, contextName, contextType, it
     triggeredRef.current = null
     setSummary(null)
     sessionStorage.removeItem(key)
-    // Re-trigger by resetting — next effect run will pick it up
-    triggeredRef.current = null
     if (items.length === 0) return
-    triggeredRef.current = contextId
+    triggeredRef.current = `${contextId}:${contextName}`
 
     let cancelled = false
     setLoading(true)
     const context = items.slice(0, 20).map(serialize).join('\n')
-    ai.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      system: `회계법인 업무 비서. ${contextType === 'client' ? '거래처' : '프로젝트'} "${contextName}"의 업무 흐름을 4~6개 항목으로 복원하세요.\n각 항목 앞에 반드시 아래 마커 중 하나를 붙이세요:\n  [Done]        완료된 일\n  [In Progress] 현재 진행·예정 중인 일\n  [Pending]     아직 시작 안 됨·미확정·follow-up 필요\n형식: "[마커] 한 줄 행동 중심 텍스트"\n예시: "[Done] 감사보고서 제출 완료", "[In Progress] 담당자 미팅 일정 진행 중", "[Pending] 수임료 납부 확인 필요"`,
-      messages: [{ role: 'user', content: `최근 활동 (최신순):\n${context}` }],
-    }).then(({ content }) => {
-      if (cancelled) return
-      const text = content[0].type === 'text' ? content[0].text : ''
-      setSummary(text)
-      writeCache(key, text)
-    }).catch(() => {
-      if (!cancelled) setSummary('흐름 복원 중 오류가 발생했습니다.')
-    }).finally(() => {
-      if (!cancelled) setLoading(false)
-    })
+    generateWorkspaceSummaryEdge(contextName, contextType, context)
+      .then(text => {
+        if (cancelled) return
+        setSummary(text)
+        writeCache(key, text)
+      })
+      .catch(() => {
+        if (!cancelled) setSummary('흐름 복원 중 오류가 발생했습니다.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
   }
 
   return (
