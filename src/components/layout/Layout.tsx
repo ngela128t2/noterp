@@ -41,7 +41,7 @@ export default function Layout() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onSearchOpen={() => setSearchOpen(true)} />
       <div className="flex-1 flex flex-col min-w-0">
-        <Header onMenuClick={() => setSidebarOpen(prev => !prev)} title={title} />
+        <Header title={title} />
         <main className="flex-1 overflow-auto pb-20 lg:pb-0">
           <Outlet />
         </main>
