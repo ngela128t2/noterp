@@ -42,11 +42,16 @@ export default function ClientsPage() {
       client.contact_name,
     ].filter(Boolean).some(value => String(value).toLowerCase().includes(keyword))
 
+    const isTaxRep =
+      (client.service_category ?? '').includes('세무대리') ||
+      (client.services ?? '').includes('세무대리')
+
     const matchFilter =
-      filter === '전체' ||
-      (client.service_category ?? '').includes(filter) ||
-      (client.services ?? '').includes(filter) ||
-      client.audit_type === filter
+      filter === '전체'
+        ? !isTaxRep
+        : (client.service_category ?? '').includes(filter) ||
+          (client.services ?? '').includes(filter) ||
+          client.audit_type === filter
 
     return matchSearch && matchFilter
   }).sort((a, b) => Number(b.is_pinned ?? false) - Number(a.is_pinned ?? false))
