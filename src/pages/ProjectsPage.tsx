@@ -1,7 +1,8 @@
 ﻿import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import ProjectFormModal from '../components/projects/ProjectFormModal'
 import { useClients } from '../hooks/useClients'
-import { useCreateProject, useDeleteProject, useMilestones, useProjects, useToggleMilestone, useUpdateProject } from '../hooks/useProjects'
+import { useAddMilestone, useCreateProject, useDeleteMilestone, useDeleteProject, useMilestones, useProjects, useToggleMilestone, useUpdateProject } from '../hooks/useProjects'
 import { supabase } from '../lib/supabase'
 import type { Project } from '../types'
 
@@ -24,6 +25,21 @@ const STATUS_COLOR: Record<Project['status'], string> = {
   in_progress: 'bg-indigo-100 text-indigo-700',
   review: 'bg-amber-100 text-amber-700',
   completed: 'bg-emerald-100 text-emerald-700',
+}
+
+function formatDueDate(dateStr: string) {
+  const [year, month, day] = dateStr.split('-')
+  return `(${year.slice(2)}/${parseInt(month)}/${parseInt(day)})`
+}
+
+function timeToKorean(timeStr: string) {
+  if (!timeStr) return ''
+  const [hStr, mStr] = timeStr.split(':')
+  const h = parseInt(hStr)
+  const m = parseInt(mStr ?? '0')
+  const ampm = h < 12 ? '오전' : '오후'
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return m > 0 ? `${ampm}${h12}시${m}분` : `${ampm}${h12}시`
 }
 
 function parseProjectMemo(memo: string | null | undefined) {
@@ -220,43 +236,84 @@ function ProjectRow({
 }) {
   const { data: milestones = [] } = useMilestones(project.id)
   const toggleMilestone = useToggleMilestone()
-  const done = milestones.filter(milestone => milestone.completed).length
+  const addMilestone = useAddMilestone()
+  const deleteMilestone = useDeleteMilestone()
+  const done = milestones.filter(m => m.completed).length
   const memoEntries = parseProjectMemo(project.memo)
+
+  const [newDate, setNewDate] = useState('')
+  const [newTime, setNewTime] = useState('')
+  const [newTitle, setNewTitle] = useState('')
+
+  const handleAddMilestone = async () => {
+    const title = newTitle.trim()
+    if (!title) return
+    await addMilestone.mutateAsync({
+      project_id: project.id,
+      title,
+      due_date: newDate || null,
+      time: newTime || null,
+    })
+    setNewDate('')
+    setNewTime('')
+    setNewTitle('')
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); handleAddMilestone() }
+  }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-      <div className="p-4 flex items-center justify-between cursor-pointer" onClick={onToggle}>
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${STATUS_COLOR[project.status]}`}>
+      {/* 카드 헤더 — 클릭 영역 */}
+      <div className="p-4 cursor-pointer" onClick={onToggle}>
+        {/* 상단: 상태 뱃지 + 프로젝트명 */}
+        <div className="flex items-start gap-2 mb-2.5">
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 mt-1 whitespace-nowrap ${STATUS_COLOR[project.status]}`}>
             {STATUS_LABEL[project.status]}
           </span>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="font-semibold text-gray-900 truncate">{project.name}</span>
-              {project.needs_review && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="검토 필요" />}
-              {project.type && (
-                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full shrink-0">
-                  {project.type}{project.type_detail ? ` · ${project.type_detail}` : ''}
-                </span>
-              )}
-              {project.memo && <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full shrink-0">메모</span>}
-            </div>
-            <div className="text-xs text-gray-400 mt-0.5 flex gap-3 flex-wrap">
-              {project.clients && <span>거래처 {project.clients.name}</span>}
-              {(project.start_date || project.end_date) && <span>{project.start_date ?? '미정'} ~ {project.end_date ?? '미정'}</span>}
-              {milestones.length > 0 && <span className={done === milestones.length ? 'text-emerald-500' : ''}>단계 {done}/{milestones.length}</span>}
-            </div>
-          </div>
+          {project.needs_review && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1.5" title="검토 필요" />}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <button onClick={event => { event.stopPropagation(); onEdit() }} className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg">수정</button>
-          <button onClick={event => { event.stopPropagation(); onDelete() }} className="px-3 py-1.5 text-xs text-red-400 hover:bg-red-50 rounded-lg">삭제</button>
-          <span className="text-gray-300 ml-1 text-xs">{expanded ? '접기' : '열기'}</span>
+        {/* 프로젝트명 — 독립 블록으로 줄바꿈 보장 */}
+        <p className="font-semibold text-gray-900 leading-snug mb-1.5">{project.name}</p>
+        {/* 서브 정보: 거래처 / 기간 / 마일스톤 */}
+        <div className="flex items-center gap-2 flex-wrap mb-1">
+          {project.clients && (
+            <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">{project.clients.name}</span>
+          )}
+          {(project.start_date || project.end_date) && (
+            <span className="text-xs text-gray-400">{project.start_date ?? '미정'} ~ {project.end_date ?? '미정'}</span>
+          )}
+          {project.type && (
+            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+              {project.type}{project.type_detail ? ` · ${project.type_detail}` : ''}
+            </span>
+          )}
+          {milestones.length > 0 && (
+            <span className={`text-xs font-medium ${done === milestones.length ? 'text-emerald-500' : 'text-indigo-500'}`}>
+              단계 {done}/{milestones.length}
+            </span>
+          )}
+          {project.memo && <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">메모</span>}
+        </div>
+
+        {/* 액션 버튼 행 — 별도 행 */}
+        <div className="flex items-center gap-1 pt-1 border-t border-gray-50" onClick={e => e.stopPropagation()}>
+          <Link
+            to={`/workspace/project/${project.id}`}
+            className="px-3 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg font-medium"
+          >
+            워크스페이스
+          </Link>
+          <button onClick={onEdit} className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg">수정</button>
+          <button onClick={onDelete} className="px-3 py-1.5 text-xs text-red-400 hover:bg-red-50 rounded-lg">삭제</button>
+          <span className="ml-auto text-xs text-gray-300">{expanded ? '접기' : '열기'}</span>
         </div>
       </div>
 
       {expanded && (
         <div className="border-t border-gray-100 px-4 py-3 space-y-4">
+          {/* 프로젝트 메모 */}
           <div>
             <p className="text-xs font-semibold text-gray-500 mb-2">프로젝트 메모</p>
             {memoEntries.length > 0 ? (
@@ -264,15 +321,17 @@ function ProjectRow({
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-xs text-gray-500">
                     <tr>
-                      <th className="text-left font-medium px-3 py-2 w-40">입력시간</th>
+                      <th className="text-left font-medium px-3 py-2 w-28 shrink-0">입력시간</th>
                       <th className="text-left font-medium px-3 py-2">내용</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {memoEntries.map((entry, index) => (
-                      <tr key={index}>
-                        <td className="px-3 py-2 text-xs text-gray-400 align-top whitespace-nowrap">{entry.time}</td>
-                        <td className="px-3 py-2 text-gray-700 whitespace-pre-wrap">{entry.content}</td>
+                    {memoEntries.map((entry, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 text-xs text-gray-400 align-top w-28 max-w-[7rem]">
+                          <span className="block truncate">{entry.time}</span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-700 text-sm whitespace-pre-wrap break-words">{entry.content}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -283,29 +342,74 @@ function ProjectRow({
             )}
           </div>
 
+          {/* 타임라인 */}
           <div>
             <p className="text-xs font-semibold text-gray-500 mb-2">타임라인</p>
-            {milestones.length === 0 ? (
-              <p className="text-xs text-gray-400">마일스톤이 없습니다.</p>
-            ) : (
-              <ol className="relative border-l border-gray-200 ml-2 space-y-3">
-                {milestones.map(milestone => (
-                  <li key={milestone.id} className="pl-4 text-sm relative">
-                    <span className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full ${milestone.completed ? 'bg-emerald-500' : 'bg-indigo-500'}`} />
-                    <div className="flex items-center gap-2">
+
+            {milestones.length > 0 && (
+              <ol className="relative border-l-2 border-gray-100 ml-1.5 space-y-2 mb-3">
+                {milestones.map(m => (
+                  <li key={m.id} className="pl-4 relative group">
+                    <span className={`absolute -left-[5px] top-2 w-2.5 h-2.5 rounded-full border-2 border-white ${m.completed ? 'bg-emerald-500' : 'bg-indigo-400'}`} />
+                    <div className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
-                        checked={milestone.completed}
-                        onChange={event => toggleMilestone.mutate({ id: milestone.id, completed: event.target.checked, projectId: project.id })}
-                        className="rounded"
+                        checked={m.completed}
+                        onChange={e => toggleMilestone.mutate({ id: m.id, completed: e.target.checked, projectId: project.id })}
+                        className="rounded accent-indigo-600 shrink-0"
                       />
-                      <span className={milestone.completed ? 'line-through text-gray-400' : 'text-gray-700'}>{milestone.title}</span>
-                      {milestone.due_date && <span className="text-xs text-gray-400 ml-auto">{milestone.due_date}</span>}
+                      {m.due_date && (
+                        <span className="text-xs font-mono text-indigo-500 shrink-0">{formatDueDate(m.due_date)}</span>
+                      )}
+                      {m.time && (
+                        <span className="text-xs text-indigo-400 shrink-0">{timeToKorean(m.time)}</span>
+                      )}
+                      <span className={`flex-1 ${m.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>{m.title}</span>
+                      <button
+                        onClick={() => deleteMilestone.mutate({ id: m.id, projectId: project.id })}
+                        className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 text-xs px-1 transition-opacity"
+                        title="삭제"
+                      >✕</button>
                     </div>
                   </li>
                 ))}
               </ol>
             )}
+
+            {/* 빠른 추가 — 모바일 2줄 / 데스크톱 1줄 */}
+            <div className="mt-1 space-y-1.5">
+              <div className="flex gap-1.5">
+                <input
+                  type="date"
+                  value={newDate}
+                  onChange={e => setNewDate(e.target.value)}
+                  className="flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                />
+                <input
+                  type="time"
+                  value={newTime}
+                  onChange={e => setNewTime(e.target.value)}
+                  className="w-24 shrink-0 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                />
+              </div>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={e => setNewTitle(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="내용 입력 후 Enter"
+                  className="flex-1 min-w-0 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                />
+                <button
+                  onClick={handleAddMilestone}
+                  disabled={!newTitle.trim() || addMilestone.isPending}
+                  className="shrink-0 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs rounded-lg whitespace-nowrap"
+                >
+                  + 추가
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

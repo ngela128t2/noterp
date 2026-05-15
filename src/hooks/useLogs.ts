@@ -68,9 +68,27 @@ export function useRecentLogs(limit = 20) {
   })
 }
 
+export function useProjectLogs(projectId: string) {
+  return useQuery({
+    queryKey: ['activity_logs', 'project', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select('*')
+        .eq('entity_type', 'project')
+        .eq('entity_id', projectId)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data as ActivityLog[]
+    },
+    enabled: !!projectId,
+  })
+}
+
 export function useClientLogs(clientId: string) {
   return useQuery({
     queryKey: ['activity_logs', 'client', clientId],
+    enabled: !!clientId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('activity_logs')

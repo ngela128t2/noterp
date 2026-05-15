@@ -3,21 +3,24 @@ import { useReviewBadges } from '../../hooks/useReviewBadges'
 import { supabase } from '../../lib/supabase'
 
 const navItems = [
-  { to: '/', icon: '·', label: '대시보드' },
+  { to: '/', icon: '·', label: 'Workspace' },
   { to: '/memo', icon: '·', label: '메모 입력' },
   { to: '/clients', icon: '·', label: '거래처', badgeKey: 'clients' as const },
   { to: '/projects', icon: '·', label: '프로젝트', badgeKey: 'projects' as const },
   { to: '/calendar', icon: '·', label: '캘린더' },
-  { to: '/todos', icon: '·', label: '할 일' },
+  { to: '/todos', icon: '·', label: 'Follow-up' },
+  { to: '/billing', icon: '·', label: '수금 관리' },
+  { to: '/deadlines', icon: '·', label: '마감 기한' },
   { to: '/contacts', icon: '·', label: 'N-CRM', badgeKey: 'contacts' as const },
 ]
 
 interface Props {
   open: boolean
   onClose: () => void
+  onSearchOpen: () => void
 }
 
-export default function Sidebar({ open, onClose }: Props) {
+export default function Sidebar({ open, onClose, onSearchOpen }: Props) {
   const handleLogout = () => supabase.auth.signOut()
   const { data: badges } = useReviewBadges()
 
@@ -32,6 +35,14 @@ export default function Sidebar({ open, onClose }: Props) {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5 w-52">
+        <button
+          onClick={onSearchOpen}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 border border-gray-200 mb-2"
+        >
+          <span className="text-xs text-gray-400">🔍</span>
+          <span className="flex-1 text-left text-gray-500">검색</span>
+          <kbd className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-400 rounded">⌘K</kbd>
+        </button>
         {navItems.map(({ to, icon, label, badgeKey }) => {
           const showBadge = badgeKey ? (badges?.[badgeKey] ?? 0) > 0 : false
           return (

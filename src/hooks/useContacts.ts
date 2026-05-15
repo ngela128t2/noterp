@@ -37,9 +37,10 @@ export function useUpdateContact() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...input }: Partial<Contact> & { id: string }) => {
+      const { user_id: _uid, ...updateData } = input
       const { data, error } = await supabase
         .from('contacts')
-        .update({ ...input, needs_review: false })
+        .update({ ...updateData, needs_review: false })
         .eq('id', id)
         .select()
         .single()

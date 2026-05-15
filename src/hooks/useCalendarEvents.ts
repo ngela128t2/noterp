@@ -2,6 +2,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { CalendarEvent } from '../types'
 
+export function useProjectCalendarEvents(projectId: string) {
+  return useQuery({
+    queryKey: ['calendar_events', 'project', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .select('*, clients(name)')
+        .eq('project_id', projectId)
+        .order('date', { ascending: false })
+      if (error) throw error
+      return data as (CalendarEvent & { clients: { name: string } | null })[]
+    },
+    enabled: !!projectId,
+  })
+}
+
 export function useClientUpcomingEvents(clientId: string) {
   return useQuery({
     queryKey: ['calendar_events', 'client', clientId],
@@ -15,6 +31,22 @@ export function useClientUpcomingEvents(clientId: string) {
         .order('date')
         .order('time', { nullsFirst: true })
         .limit(10)
+      if (error) throw error
+      return data as (CalendarEvent & { projects: { name: string } | null })[]
+    },
+    enabled: !!clientId,
+  })
+}
+
+export function useClientCalendarEvents(clientId: string) {
+  return useQuery({
+    queryKey: ['calendar_events', 'client_all', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .select('*, projects(name)')
+        .eq('client_id', clientId)
+        .order('date', { ascending: false })
       if (error) throw error
       return data as (CalendarEvent & { projects: { name: string } | null })[]
     },

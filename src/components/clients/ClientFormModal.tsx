@@ -55,6 +55,7 @@ function empty(): FormState {
     status: 'active',
     needs_review: false,
     source: null,
+    is_pinned: false,
   }
 }
 

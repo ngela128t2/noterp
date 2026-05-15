@@ -40,6 +40,7 @@ export interface Client {
   status: 'active' | 'inactive'
   needs_review: boolean | null
   source: string | null
+  is_pinned: boolean | null
   created_at: string
 }
 
@@ -64,6 +65,7 @@ export interface Milestone {
   project_id: string
   title: string
   due_date: string | null
+  time: string | null
   completed: boolean
   created_at: string
 }
@@ -114,6 +116,60 @@ export interface Memo {
   raw_text: string
   parsed_result: ParsedResult | null
   status: 'pending' | 'approved' | 'rejected'
+  created_at: string
+}
+
+// ── 수금 관리 ─────────────────────────────────────────────────────────
+
+export interface BillingContract {
+  id: string
+  user_id: string
+  client_id: string
+  service_category: string
+  amount: number
+  billing_cycle: 'monthly' | 'quarterly' | 'once'
+  billing_day: number | null
+  start_date: string
+  end_date: string | null
+  memo: string | null
+  created_at: string
+}
+
+export interface BillingRecord {
+  id: string
+  user_id: string
+  contract_id: string | null
+  client_id: string
+  amount: number
+  billed_at: string | null
+  paid_at: string | null
+  status: 'pending' | 'billed' | 'paid' | 'overdue'
+  memo: string | null
+  created_at: string
+}
+
+// ── 마감 기한 관리 ────────────────────────────────────────────────────
+
+export interface DeadlineTemplate {
+  id: string
+  user_id: string
+  name: string
+  recurrence: 'yearly' | 'quarterly' | 'monthly'
+  month: number | null
+  day: number
+  alert_days: number[]
+  created_at: string
+}
+
+export interface DeadlineInstance {
+  id: string
+  user_id: string
+  template_id: string | null
+  client_id: string
+  name: string
+  due_date: string
+  completed: boolean
+  completed_at: string | null
   created_at: string
 }
 

@@ -1,8 +1,8 @@
-﻿import { useCallback, useRef, useState } from 'react'
-import { useClients, useCreateClient, useUpdateClient, useDeleteClient } from '../hooks/useClients'
+import { useCallback, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useClients, useCreateClient, useUpdateClient, useDeleteClient, useTogglePinClient } from '../hooks/useClients'
 import { extractFromBusinessLicense } from '../lib/gemini'
 import ClientFormModal from '../components/clients/ClientFormModal'
-import ClientDetailPanel from '../components/clients/ClientDetailPanel'
 import type { Client } from '../types'
 
 const SERVICE_FILTERS = ['전체', '세무대리', '외부감사', '자문', '컨설팅', '한공회', '강의', '기타']
@@ -23,9 +23,10 @@ export default function ClientsPage() {
   const createClient = useCreateClient()
   const updateClient = useUpdateClient()
   const deleteClient = useDeleteClient()
+  const togglePin = useTogglePinClient()
+  const navigate = useNavigate()
 
   const [modal, setModal] = useState<ModalState>(null)
-  const [selected, setSelected] = useState<Client | null>(null)
   const [ocrInitial, setOcrInitial] = useState<Partial<Client> | undefined>(undefined)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('전체')
@@ -48,7 +49,7 @@ export default function ClientsPage() {
       client.audit_type === filter
 
     return matchSearch && matchFilter
-  })
+  }).sort((a, b) => Number(b.is_pinned ?? false) - Number(a.is_pinned ?? false))
 
   const handleSave = (data: Omit<Client, 'id' | 'created_at' | 'user_id' | 'code'>) => {
     if (modal === 'create') {
@@ -60,10 +61,7 @@ export default function ClientsPage() {
       })
     } else if (modal && typeof modal === 'object') {
       updateClient.mutate({ id: modal.id, ...data }, {
-        onSuccess: updated => {
-          setModal(null)
-          setSelected(updated)
-        },
+        onSuccess: () => setModal(null),
       })
     }
   }
@@ -96,8 +94,6 @@ export default function ClientsPage() {
       if (file) handleOcr(file)
     }
   }, [handleOcr])
-
-  const panelOpen = selected !== null
 
   return (
     <div className="flex h-full" onPaste={handlePaste}>
@@ -149,28 +145,30 @@ export default function ClientsPage() {
 
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] table-fixed text-sm">
+            <table className="table-fixed text-sm min-w-[1080px] w-full">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-400">
-                  <th className="text-left px-4 py-3 font-semibold w-24">코드</th>
-                  <th className="text-left px-4 py-3 font-semibold w-[280px]">거래처명</th>
-                  <th className="text-left px-4 py-3 font-semibold w-36">사업자번호</th>
-                  <th className="text-left px-4 py-3 font-semibold w-24">대표자</th>
-                  <th className="text-left px-4 py-3 font-semibold w-28">개업일</th>
-                  {!panelOpen && <th className="text-left px-4 py-3 font-semibold w-36">업종</th>}
-                  <th className="text-left px-4 py-3 font-semibold w-40">제공 용역</th>
-                  {!panelOpen && <th className="text-left px-4 py-3 font-semibold w-28">계약일</th>}
-                  {!panelOpen && <th className="text-left px-4 py-3 font-semibold w-28">등록일</th>}
+                  <th className="px-2 py-3 w-8" />
+                  <th className="text-left px-4 py-3 font-semibold w-20">코드</th>
+                  <th className="text-left px-4 py-3 font-semibold w-[180px]">거래처명</th>
+                  <th className="text-left px-4 py-3 font-semibold w-[130px]">사업자번호</th>
+                  <th className="text-left px-4 py-3 font-semibold w-20">대표자</th>
+                  <th className="text-left px-4 py-3 font-semibold w-24">개업일</th>
+                  <th className="text-left px-4 py-3 font-semibold w-28">업종</th>
+                  <th className="text-left px-4 py-3 font-semibold w-36">제공 용역</th>
+                  <th className="text-left px-4 py-3 font-semibold w-24">계약일</th>
+                  <th className="text-left px-4 py-3 font-semibold w-24">등록일</th>
+                  <th className="px-4 py-3 w-20" />
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-gray-400 text-sm">불러오는 중...</td>
+                    <td colSpan={11} className="px-4 py-8 text-center text-gray-400 text-sm">불러오는 중...</td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center">
+                    <td colSpan={11} className="px-4 py-12 text-center">
                       <p className="text-gray-400 text-sm mb-2">등록된 거래처가 없습니다.</p>
                       <button onClick={() => { setOcrInitial(undefined); setModal('create') }} className="text-sm text-indigo-600 hover:underline">
                         첫 거래처 추가하기
@@ -183,9 +181,18 @@ export default function ClientsPage() {
                     return (
                       <tr
                         key={client.id}
-                        onClick={() => setSelected(selected?.id === client.id ? null : client)}
-                        className={`border-b border-gray-50 cursor-pointer transition-colors ${selected?.id === client.id ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
+                        onClick={() => navigate(`/workspace/client/${client.id}`)}
+                        className={`group border-b border-gray-50 cursor-pointer transition-colors ${client.is_pinned ? 'border-l-2 border-l-amber-400' : ''} hover:bg-indigo-50/40`}
                       >
+                        <td className="px-2 py-3 text-center">
+                          <button
+                            onClick={e => { e.stopPropagation(); togglePin.mutate({ id: client.id, is_pinned: !client.is_pinned }) }}
+                            className={`text-lg leading-none transition-colors ${client.is_pinned ? 'text-amber-400' : 'text-gray-200 hover:text-amber-300'}`}
+                            title={client.is_pinned ? '즐겨찾기 해제' : '즐겨찾기'}
+                          >
+                            ★
+                          </button>
+                        </td>
                         <td className="px-4 py-3 font-mono text-indigo-600 text-xs font-medium">{showCode ? client.code : '-'}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2 min-w-0">
@@ -199,7 +206,7 @@ export default function ClientsPage() {
                         <td className="px-4 py-3 text-gray-500 tabular-nums text-xs">{client.business_number ?? '-'}</td>
                         <td className="px-4 py-3 text-gray-600 text-xs truncate">{client.representative ?? '-'}</td>
                         <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{client.established_date ?? '-'}</td>
-                        {!panelOpen && <td className="px-4 py-3 text-gray-500 text-xs truncate">{client.industry ?? '-'}</td>}
+                        <td className="px-4 py-3 text-gray-500 text-xs truncate">{client.industry ?? '-'}</td>
                         <td className="px-4 py-3">
                           {(client.service_category || client.services) ? (
                             <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium whitespace-nowrap">
@@ -210,8 +217,20 @@ export default function ClientsPage() {
                             <span className="text-gray-300 text-xs">-</span>
                           )}
                         </td>
-                        {!panelOpen && <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{client.contract_date ?? '-'}</td>}
-                        {!panelOpen && <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{client.created_at.slice(0, 10)}</td>}
+                        <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{client.contract_date ?? '-'}</td>
+                        <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{client.created_at.slice(0, 10)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={e => { e.stopPropagation(); setOcrInitial(undefined); setModal(client) }}
+                              className="text-xs text-gray-400 hover:text-indigo-600 px-1.5 py-1 rounded hover:bg-indigo-50"
+                            >수정</button>
+                            <button
+                              onClick={e => { e.stopPropagation(); if (confirm('삭제할까요?')) deleteClient.mutate(client.id) }}
+                              className="text-xs text-gray-400 hover:text-red-500 px-1.5 py-1 rounded hover:bg-red-50"
+                            >삭제</button>
+                          </div>
+                        </td>
                       </tr>
                     )
                   })
@@ -223,20 +242,6 @@ export default function ClientsPage() {
 
         {filtered.length > 0 && <p className="text-xs text-gray-400 mt-3">총 {filtered.length}개 거래처</p>}
       </div>
-
-      {selected && (
-        <ClientDetailPanel
-          client={selected}
-          onEdit={() => setModal(selected)}
-          onDelete={() => {
-            if (confirm('거래처를 삭제하시겠습니까?')) {
-              deleteClient.mutate(selected.id)
-              setSelected(null)
-            }
-          }}
-          onClose={() => setSelected(null)}
-        />
-      )}
 
       {modal !== null && (
         <ClientFormModal

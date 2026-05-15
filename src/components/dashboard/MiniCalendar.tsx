@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react'
 
 interface Props {
   events: { date: string; title: string }[]
+  selectedDate?: string
   onDateClick?: (date: string) => void
 }
 
 const WEEK_DAYS = ['일', '월', '화', '수', '목', '금', '토']
 
-export default function MiniCalendar({ events, onDateClick }: Props) {
+export default function MiniCalendar({ events, selectedDate, onDateClick }: Props) {
   const today = new Date()
   const [cursor, setCursor] = useState({
     year: today.getFullYear(),
@@ -89,6 +90,8 @@ export default function MiniCalendar({ events, onDateClick }: Props) {
           const count = eventDateCounts.get(day) ?? 0
           const dateStr = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 
+          const isSelected = dateStr === selectedDate && !isToday(day)
+
           return (
             <button
               key={index}
@@ -96,9 +99,11 @@ export default function MiniCalendar({ events, onDateClick }: Props) {
               className={`relative h-10 rounded-xl text-xs transition-colors ${
                 isToday(day)
                   ? 'bg-indigo-600 text-white font-bold'
-                  : 'bg-gray-50 hover:bg-indigo-50 text-gray-800'
-              } ${colIdx === 0 && !isToday(day) ? 'text-red-400' : ''} ${
-                colIdx === 6 && !isToday(day) ? 'text-blue-500' : ''
+                  : isSelected
+                    ? 'bg-indigo-100 text-indigo-700 font-semibold ring-2 ring-indigo-400'
+                    : 'bg-gray-50 hover:bg-indigo-50 text-gray-800'
+              } ${colIdx === 0 && !isToday(day) && !isSelected ? 'text-red-400' : ''} ${
+                colIdx === 6 && !isToday(day) && !isSelected ? 'text-blue-500' : ''
               }`}
             >
               <span className="absolute top-2 left-2">{day}</span>

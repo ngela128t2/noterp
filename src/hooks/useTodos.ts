@@ -19,6 +19,22 @@ export function useClientTodos(clientId: string) {
   })
 }
 
+export function useProjectTodos(projectId: string) {
+  return useQuery({
+    queryKey: ['todos', 'project', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('todos')
+        .select('*, clients(name)')
+        .eq('project_id', projectId)
+        .order('due_date', { ascending: true, nullsFirst: false })
+      if (error) throw error
+      return data as (Todo & { clients: { name: string } | null })[]
+    },
+    enabled: !!projectId,
+  })
+}
+
 export function useTodos() {
   return useQuery({
     queryKey: ['todos'],

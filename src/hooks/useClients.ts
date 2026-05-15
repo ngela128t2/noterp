@@ -50,6 +50,23 @@ export function useUpdateClient() {
   })
 }
 
+export function useTogglePinClient() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, is_pinned }: { id: string; is_pinned: boolean }) => {
+      const { data, error } = await supabase
+        .from('clients')
+        .update({ is_pinned })
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data as Client
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['clients'] }),
+  })
+}
+
 export function useDeleteClient() {
   const qc = useQueryClient()
   return useMutation({

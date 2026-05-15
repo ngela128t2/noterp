@@ -4,6 +4,8 @@
   dates: string[]
   times: string[]
   priorities: Array<'high' | 'medium' | 'low'>
+  people: string[]        // @이름 형식의 담당자/연락처
+  scheduleItems: string[] // * 로 시작하는 개별 일정 항목
 }
 
 const RELATIVE_DAYS: Record<string, number> = { 오늘: 0, 내일: 1, 모레: 2 }
@@ -71,7 +73,7 @@ function normalizeDateToken(token: string) {
   return trimmed
 }
 
-function normalizeTimeToken(token: string) {
+export function normalizeTimeToken(token: string) {
   const trimmed = token.trim()
   const ampm = trimmed.match(/^(오전|오후)\s*(\d{1,2})시(?:\s*(\d{1,2})분?)?$/)
   if (ampm) {
@@ -90,17 +92,26 @@ function normalizeTimeToken(token: string) {
   return trimmed
 }
 
+// @이름 에서 날짜/시간 키워드를 제외하기 위한 집합
+const AT_DATE_WORDS = new Set([
+  '오늘', '내일', '모레',
+  '이번', '다음', '이번주', '다음주',
+  '오전', '오후',
+  '월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일',
+  '월', '화', '수', '목', '금', '토', '일',
+])
+
 export function parseMemoShortcuts(text: string): MemoShortcutHints {
   const clients = [
     ...Array.from(text.matchAll(/#\[([^\]]+)\]/g), match => match[1]),
-    ...Array.from(text.matchAll(/#([^\s/@#!]+)/g), match => match[1]),
-    ...Array.from(text.matchAll(/\/거래처\s*([^\n/@#!]+)/g), match => match[1]),
+    ...Array.from(text.matchAll(/#([^\s/@#!*]+)/g), match => match[1]),
+    ...Array.from(text.matchAll(/\/거래처\s*([^\n/@#!*]+)/g), match => match[1]),
   ]
 
   const projects = [
     ...Array.from(text.matchAll(/\/\[([^\]]+)\]/g), match => match[1]),
-    ...Array.from(text.matchAll(/\/프로젝트:\s*([^\n/@#!]+)/g), match => match[1]),
-    ...Array.from(text.matchAll(/\/([^\s/@#!]+)/g), match => match[1]),
+    ...Array.from(text.matchAll(/\/프로젝트:\s*([^\n/@#!*]+)/g), match => match[1]),
+    ...Array.from(text.matchAll(/\/([^\s/@#!*]+)/g), match => match[1]),
   ].filter(value => !value.startsWith('거래처') && !value.startsWith('프로젝트:'))
 
   const dateTokens = [
@@ -122,17 +133,31 @@ export function parseMemoShortcuts(text: string): MemoShortcutHints {
   if (/[!！](보통|medium)/i.test(text)) priorities.push('medium')
   if (/[!！](낮음|low)/i.test(text)) priorities.push('low')
 
+  // @이름: 날짜/시간 키워드가 아닌 2~5자 한글 이름
+  const people = Array.from(
+    text.matchAll(/@([가-힣]{2,5})/g),
+    match => match[1],
+  ).filter(name => !AT_DATE_WORDS.has(name) && !AT_DATE_WORDS.has(name.slice(0, 2)))
+
+  // * 로 시작하는 개별 일정 항목
+  const scheduleItems = Array.from(
+    text.matchAll(/^\*[ \t]+(.+)$/gm),
+    match => match[1].trim(),
+  ).filter(Boolean)
+
   return {
     clients: unique(clients),
     projects: unique(projects),
     dates: unique(dateTokens.map(normalizeDateToken)),
     times: unique(timeTokens.map(normalizeTimeToken)),
     priorities: Array.from(new Set(priorities)),
+    people: unique(people),
+    scheduleItems,
   }
 }
 
 export function hasMemoShortcuts(hints: MemoShortcutHints) {
-  return hints.clients.length > 0 || hints.projects.length > 0 || hints.dates.length > 0 || hints.times.length > 0 || hints.priorities.length > 0
+  return hints.clients.length > 0 || hints.projects.length > 0 || hints.dates.length > 0 || hints.times.length > 0 || hints.priorities.length > 0 || hints.people.length > 0 || hints.scheduleItems.length > 0
 }
 
 export function formatShortcutHints(hints: MemoShortcutHints) {
@@ -142,10 +167,13 @@ export function formatShortcutHints(hints: MemoShortcutHints) {
     hints.dates.length ? `날짜: ${hints.dates.join(', ')}` : null,
     hints.times.length ? `시간: ${hints.times.join(', ')}` : null,
     hints.priorities.length ? `우선순위: ${hints.priorities.join(', ')}` : null,
+    hints.people.length ? `담당자/연락처: ${hints.people.join(', ')}` : null,
+    hints.scheduleItems.length ? `일정항목:\n${hints.scheduleItems.map(s => `- ${s}`).join('\n')}` : null,
   ].filter(Boolean).join('\n')
 }
 
 export function normalizeMemoName(value: string) {
+  if (!value) return ''
   return value
     .replace(/[\[\]【】()（）{}]/g, '')
     .replace(/[\s·ㆍ,._-]+/g, '')

@@ -6,8 +6,9 @@ const items = [
   { to: '/clients', short: '거래처', badgeKey: 'clients' as const },
   { to: '/projects', short: '프로젝트', badgeKey: 'projects' as const },
   { to: '/calendar', short: '일정' },
-  { to: '/todos', short: '할 일' },
-  { to: '/contacts', short: 'N-CRM', badgeKey: 'contacts' as const },
+  { to: '/billing', short: '수금' },
+  { to: '/deadlines', short: '마감' },
+  { to: '/todos', short: 'Follow-up' },
 ]
 
 export default function BottomNav() {
@@ -15,7 +16,7 @@ export default function BottomNav() {
 
   return (
     <nav className="lg:hidden fixed inset-x-0 bottom-0 z-50 bg-white/95 backdrop-blur border-t border-gray-200 pb-[env(safe-area-inset-bottom)]">
-      <div className="grid grid-cols-6 h-16">
+      <div className="grid grid-cols-7 h-16">
         {items.map(item => {
           const showBadge = item.badgeKey ? (badges?.[item.badgeKey] ?? 0) > 0 : false
           return (

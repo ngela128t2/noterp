@@ -1,8 +1,9 @@
 ﻿import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import MemoInput from '../components/memo/MemoInput'
 import ParseResultCard from '../components/memo/ParseResultCard'
-import { normalizeMemoName, parseMemoShortcuts } from '../lib/memoShortcuts'
+import { normalizeMemoName, normalizeTimeToken, parseMemoShortcuts } from '../lib/memoShortcuts'
 import { supabase } from '../lib/supabase'
 import type { ParsedResult } from '../types'
 
@@ -25,15 +26,25 @@ function appendMemo(existing: string | null | undefined, rawText: string) {
 }
 
 function cleanMemoTitle(rawText: string) {
+  if (!rawText) return ''
   return rawText
     .replace(/\/\[[^\]]+\]/g, '')
     .replace(/#\[[^\]]+\]/g, '')
-    .replace(/\/[^\s/@#!]+/g, '')
-    .replace(/#[^\s/@#!]+/g, '')
+    .replace(/\/[^\s/@#!*]+/g, '')
+    .replace(/#[^\s/@#!*]+/g, '')
     .replace(/@\[[^\]]+\]/g, '')
     .replace(/@[^\s]+/g, '')
     .replace(/[!！](높음|보통|낮음|긴급|중요|high|medium|low)/gi, '')
+    .replace(/^\*[ \t]+/gm, '') // * 일정항목 마커 제거
     .trim() || rawText.trim()
+}
+
+function parseScheduleItemTime(item: string): { title: string; time: string | null } {
+  const timeMatch = item.match(/(오전|오후)\s*\d{1,2}시(?:\s*\d{1,2}분?)?|\d{1,2}시(?:\s*\d{1,2}분?)?|\d{1,2}:\d{2}/)
+  if (!timeMatch) return { title: item.trim(), time: null }
+  const time = normalizeTimeToken(timeMatch[0])
+  const title = item.replace(timeMatch[0], '').trim() || item.trim()
+  return { title, time }
 }
 
 function reflectedTabs(result: ParsedResult | null) {
@@ -48,7 +59,7 @@ function reflectedTabs(result: ParsedResult | null) {
 }
 
 function buildNameMap<T extends { name: string }>(rows: T[]) {
-  return new Map(rows.map(row => [normalizeMemoName(row.name), row]))
+  return new Map(rows.filter(row => row.name).map(row => [normalizeMemoName(row.name), row]))
 }
 
 async function writeActivityLog(input: {
@@ -115,13 +126,19 @@ async function ensureMilestones(
   }
 }
 
+type SavedContext = { type: 'client' | 'project'; id: string; name: string }
+
 export default function MemoPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const routeState = location.state as { clientId?: string; projectId?: string } | null
   const [state, setState] = useState<State>('idle')
   const [parsed, setParsed] = useState<ParsedResult | null>(null)
   const [rawText, setRawText] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [logs, setLogs] = useState<MemoLog[]>([])
+  const [savedContext, setSavedContext] = useState<SavedContext | null>(null)
 
   const loadLogs = async () => {
     const { data, error } = await supabase
@@ -138,7 +155,7 @@ export default function MemoPage() {
 
   const handleParsed = (result: ParsedResult) => {
     setParsed(result)
-    setRawText(result.raw_memo)
+    setRawText(result.raw_memo ?? '')
     setSaveError(null)
     setState('parsed')
   }
@@ -175,12 +192,25 @@ export default function MemoPage() {
       if (clientReadError) throw clientReadError
 
       const clientByName = buildNameMap((existingClients ?? []) as ClientRow[])
-      const explicitClientNames = Array.from(new Set(shortcuts.clients.map(name => name.trim()).filter(Boolean)))
-      const referencedClientNames = Array.from(new Set([
+      // normalized key 기준으로 중복 제거 (예: "#서울회생법원"과 "#[서울회생법원]" 동일 처리)
+      const seenExplicit = new Set<string>()
+      const explicitClientNames: string[] = []
+      for (const name of shortcuts.clients.map(n => n.trim()).filter(Boolean)) {
+        const key = normalizeMemoName(name)
+        if (!seenExplicit.has(key)) { seenExplicit.add(key); explicitClientNames.push(name) }
+      }
+      const seenRef = new Set<string>()
+      const referencedClientNames: string[] = []
+      for (const raw of [
         ...explicitClientNames,
-        ...(parsed.events ?? []).map(event => event.client_name).filter((name): name is string => Boolean(name)),
-        ...(parsed.projects ?? []).map(project => project.client_name).filter((name): name is string => Boolean(name)),
-      ].map(name => name.trim()).filter(Boolean)))
+        ...(parsed.events ?? []).map(e => e.client_name).filter((n): n is string => Boolean(n)),
+        ...(parsed.projects ?? []).map(p => p.client_name).filter((n): n is string => Boolean(n)),
+      ]) {
+        const name = raw.trim()
+        if (!name) continue
+        const key = normalizeMemoName(name)
+        if (!seenRef.has(key)) { seenRef.add(key); referencedClientNames.push(name) }
+      }
 
       for (const name of explicitClientNames) {
         const key = normalizeMemoName(name)
@@ -296,11 +326,16 @@ export default function MemoPage() {
         ?? primaryDueDate
 
       const eventInputs: Array<{ title: string; date: string | null; time: string | null; location: string | null; client_name: string | null }> =
-        parsed.events?.length
-          ? parsed.events.map(e => ({ ...e, date: e.date ?? bestDate, time: e.time ?? shortcuts.times[0] ?? null }))
-          : (bestDate || shortcuts.times.length)
-            ? [{ title: memoTitle, date: bestDate, time: shortcuts.times[0] ?? null, location: null, client_name: explicitClientNames[0] ?? null }]
-            : []
+        shortcuts.scheduleItems.length > 0
+          ? shortcuts.scheduleItems.map(item => {
+              const { title, time } = parseScheduleItemTime(item)
+              return { title: title || memoTitle, date: bestDate, time, location: null, client_name: explicitClientNames[0] ?? null }
+            })
+          : parsed.events?.length
+            ? parsed.events.map(e => ({ ...e, date: e.date ?? bestDate, time: e.time ?? shortcuts.times[0] ?? null }))
+            : (bestDate || shortcuts.times.length)
+              ? [{ title: memoTitle, date: bestDate, time: shortcuts.times[0] ?? null, location: null, client_name: explicitClientNames[0] ?? null }]
+              : []
 
       for (const event of eventInputs) {
         if (!event.date) continue
@@ -336,7 +371,16 @@ export default function MemoPage() {
       if (contactReadError) throw contactReadError
 
       const contactByName = buildNameMap((existingContacts ?? []) as Array<{ id: string; name: string; note: string | null }>)
-      for (const contact of parsed.contacts ?? []) {
+
+      // Claude 파싱 연락처 + @이름 멘션 병합
+      type ContactInput = { name: string; company?: string | null; title?: string | null }
+      const allContacts: ContactInput[] = [
+        ...(parsed.contacts ?? []).filter(c => c.name?.trim()),
+        ...shortcuts.people.filter(name => !parsed.contacts?.some(c => normalizeMemoName(c.name) === normalizeMemoName(name))).map(name => ({ name })),
+      ]
+
+      for (const contact of allContacts) {
+        if (!contact.name?.trim()) continue
         const key = normalizeMemoName(contact.name)
         const existing = contactByName.get(key)
         if (existing) {
@@ -371,6 +415,17 @@ export default function MemoPage() {
         queryClient.invalidateQueries({ queryKey: ['review_badges'] }),
       ])
 
+      // 승인 후 워크스페이스 CTA: 이미 계산된 hintedClient / primaryProject 재사용
+      const ctxClient = hintedClient
+        ?? (referencedClientNames[0] ? clientByName.get(normalizeMemoName(referencedClientNames[0])) ?? null : null)
+      if (ctxClient?.id) {
+        setSavedContext({ type: 'client', id: ctxClient.id, name: ctxClient.name })
+      } else if (primaryProject?.id) {
+        setSavedContext({ type: 'project', id: primaryProject.id, name: primaryProject.name })
+      } else {
+        setSavedContext(null)
+      }
+
       setState('saved')
       setParsed(null)
     } catch (error) {
@@ -403,7 +458,12 @@ export default function MemoPage() {
 
       {(state === 'idle' || state === 'loading') && (
         <div className="space-y-4">
-          <MemoInput onParsed={handleParsed} onLoading={(loading) => setState(current => loading ? 'loading' : current === 'loading' ? 'idle' : current)} />
+          <MemoInput
+            onParsed={handleParsed}
+            onLoading={(loading) => setState(current => loading ? 'loading' : current === 'loading' ? 'idle' : current)}
+            initialClientId={routeState?.clientId ?? ''}
+            initialProjectId={routeState?.projectId ?? ''}
+          />
           {state === 'loading' && (
             <div className="flex items-center gap-2 text-sm text-indigo-600 bg-indigo-50 px-4 py-3 rounded-lg">
               <span className="animate-spin">●</span>
@@ -420,15 +480,41 @@ export default function MemoPage() {
           </div>
           {saveError && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">저장 실패: {saveError}</div>}
           {state === 'saving' && <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-3 text-sm text-indigo-700">저장 중입니다...</div>}
-          <ParseResultCard result={parsed} onApprove={handleApprove} onReject={handleReject} />
+          <ParseResultCard result={parsed} onChange={setParsed} onApprove={handleApprove} onReject={handleReject} />
         </div>
       )}
 
       {state === 'saved' && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
-          <p className="text-green-700 font-medium mb-1">저장 완료</p>
-          <p className="text-sm text-green-600 mb-4">연결된 거래처 로그, 프로젝트 메모/타임라인, 캘린더와 할 일에 반영했습니다.</p>
-          <button onClick={handleReset} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg">새 메모 입력</button>
+        <div className="space-y-3">
+          <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-green-500">✓</span>
+              <p className="text-green-700 font-medium text-sm">저장 완료</p>
+            </div>
+            <p className="text-xs text-green-600">거래처 로그, 프로젝트 메모, 캘린더, 할 일에 반영했습니다.</p>
+          </div>
+
+          {savedContext && (
+            <button
+              onClick={() => navigate(`/workspace/${savedContext.type}/${savedContext.id}`)}
+              className="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl px-5 py-4 text-left flex items-center justify-between transition-colors group"
+            >
+              <div>
+                <p className="text-[10px] text-indigo-400 mb-0.5">
+                  {savedContext.type === 'client' ? '거래처' : '프로젝트'} 워크스페이스에서 계속하기
+                </p>
+                <p className="text-sm font-semibold text-indigo-700">{savedContext.name}</p>
+              </div>
+              <span className="text-indigo-400 group-hover:text-indigo-600 transition-colors text-lg">→</span>
+            </button>
+          )}
+
+          <button
+            onClick={handleReset}
+            className="w-full px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition-colors"
+          >
+            새 메모 입력
+          </button>
         </div>
       )}
 

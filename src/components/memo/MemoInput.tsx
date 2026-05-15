@@ -8,6 +8,8 @@ import type { ParsedResult } from '../../types'
 interface Props {
   onParsed: (result: ParsedResult) => void
   onLoading: (loading: boolean) => void
+  initialClientId?: string
+  initialProjectId?: string
 }
 
 type ActiveToken = {
@@ -18,6 +20,7 @@ type ActiveToken = {
 } | null
 
 const hintClass = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium'
+const selCls = 'w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white'
 
 function getActiveToken(text: string, cursor: number): ActiveToken {
   const beforeCursor = text.slice(0, cursor)
@@ -29,7 +32,7 @@ function getActiveToken(text: string, cursor: number): ActiveToken {
   return { symbol, query, start, end: cursor }
 }
 
-export default function MemoInput({ onParsed, onLoading }: Props) {
+export default function MemoInput({ onParsed, onLoading, initialClientId = '', initialProjectId = '' }: Props) {
   const { data: clients = [] } = useClients()
   const { data: projects = [] } = useProjects()
   const [text, setText] = useState('')
@@ -38,24 +41,60 @@ export default function MemoInput({ onParsed, onLoading }: Props) {
   const [running, setRunning] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  const [expanded, setExpanded] = useState(!!(initialClientId || initialProjectId))
+  const [pickedClientId, setPickedClientId] = useState(initialClientId)
+  const [pickedProjectId, setPickedProjectId] = useState(initialProjectId)
+  const [pickedDate, setPickedDate] = useState('')
+  const [pickedTime, setPickedTime] = useState('')
+
+  const pickerProjects = useMemo(
+    () => pickedClientId ? projects.filter(p => p.client_id === pickedClientId) : projects,
+    [pickedClientId, projects],
+  )
+
   const shortcuts = useMemo(() => parseMemoShortcuts(text), [text])
   const activeToken = useMemo(() => getActiveToken(text, cursor), [cursor, text])
   const suggestions = useMemo(() => {
     if (!activeToken) return []
     const query = activeToken.query.toLowerCase()
-    const source = activeToken.symbol === '/' ? projects.map(project => project.name) : clients.map(client => client.name)
+    const source = activeToken.symbol === '/' ? projects.map(p => p.name) : clients.map(c => c.name)
     return source.filter(name => !query || name.toLowerCase().includes(query)).slice(0, 6)
   }, [activeToken, clients, projects])
 
+  const hasPickerContext = !!(pickedClientId || pickedProjectId || pickedDate || pickedTime)
+  const canRun = (text.trim().length > 0 || hasPickerContext) && !running
+
+  const clearPickers = () => {
+    setPickedClientId('')
+    setPickedProjectId('')
+    setPickedDate('')
+    setPickedTime('')
+  }
+
   const handleParse = async () => {
-    if (!text.trim() || running) return
+    if (!canRun) return
+
+    const prefixes: string[] = []
+    if (pickedClientId) {
+      const c = clients.find(c => c.id === pickedClientId)
+      if (c) prefixes.push(`#[${c.name}]`)
+    }
+    if (pickedProjectId) {
+      const p = projects.find(p => p.id === pickedProjectId)
+      if (p) prefixes.push(`/[${p.name}]`)
+    }
+    if (pickedDate) prefixes.push(`@${pickedDate}`)
+    if (pickedTime) prefixes.push(`@${pickedTime}`)
+    const fullText = prefixes.length ? `${prefixes.join(' ')} ${text}`.trim() : text
+
     setError(null)
     setRunning(true)
     onLoading(true)
 
     try {
+      const merged = parseMemoShortcuts(fullText)
       const result = await Promise.race([
-        parseMemo(text, shortcuts),
+        parseMemo(fullText, merged),
         new Promise<never>((_, reject) => {
           window.setTimeout(() => reject(new Error('분석 시간이 너무 오래 걸립니다. 잠시 후 다시 실행해 주세요.')), 45000)
         }),
@@ -89,30 +128,77 @@ export default function MemoInput({ onParsed, onLoading }: Props) {
     })
   }
 
-  const updateCursor = (element: HTMLTextAreaElement) => {
-    setCursor(element.selectionStart)
-  }
+  const updateCursor = (element: HTMLTextAreaElement) => setCursor(element.selectionStart)
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center justify-between mb-3">
-        <label className="text-sm font-medium text-gray-700">메모 입력</label>
-        <span className="text-xs text-gray-400">Enter 실행 · Shift+Enter 줄바꿈</span>
+      <div className="flex items-center justify-between mb-4">
+        <label className="text-sm font-semibold text-gray-700">메모 입력</label>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => setExpanded(v => !v)} className="text-xs text-gray-400 hover:text-indigo-600 transition-colors">
+            {expanded ? '접기' : '📧 이메일/긴 텍스트'}
+          </button>
+          <span className="text-xs text-gray-400">Enter 실행 · Shift+Enter 줄바꿈</span>
+        </div>
       </div>
 
+      {/* 1차: 거래처·프로젝트·날짜 선택 */}
+      <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-medium text-gray-500">연결 선택 <span className="text-gray-400 font-normal">(선택 사항)</span></span>
+          {hasPickerContext && (
+            <button type="button" onClick={clearPickers} className="text-xs text-gray-400 hover:text-gray-600">
+              초기화
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">거래처</label>
+            <select
+              value={pickedClientId}
+              onChange={e => { setPickedClientId(e.target.value); setPickedProjectId('') }}
+              className={selCls}
+            >
+              <option value="">— 선택 안 함 —</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">프로젝트</label>
+            <select
+              value={pickedProjectId}
+              onChange={e => setPickedProjectId(e.target.value)}
+              className={selCls}
+            >
+              <option value="">— 선택 안 함 —</option>
+              {pickerProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">날짜</label>
+            <input type="date" value={pickedDate} onChange={e => setPickedDate(e.target.value)} className={selCls} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">시간</label>
+            <input type="time" value={pickedTime} onChange={e => setPickedTime(e.target.value)} className={selCls} />
+          </div>
+        </div>
+      </div>
+
+      {/* 2차: 자유 텍스트 */}
       <div className="relative">
         <textarea
           ref={textareaRef}
           value={text}
-          onChange={(event) => {
-            setText(event.target.value)
-            updateCursor(event.target)
-          }}
-          onClick={(event) => updateCursor(event.currentTarget)}
-          onKeyUp={(event) => updateCursor(event.currentTarget)}
+          onChange={event => { setText(event.target.value); updateCursor(event.target) }}
+          onClick={event => updateCursor(event.currentTarget)}
+          onKeyUp={event => updateCursor(event.currentTarget)}
           onKeyDown={handleKeyDown}
-          rows={6}
-          placeholder={`예) /기록작업 #네일클린 오늘 2시에 카톡생성 및 전화하기\n예) /사전심리 #회계법인성지 이번주 일요일 감사보고서 미팅 준비`}
+          rows={expanded ? 14 : 4}
+          placeholder={hasPickerContext
+            ? '추가 내용을 입력하세요 (없으면 비워도 됩니다)'
+            : `예) #[중소회계법인] /감사보고서 오늘 오전10시 미팅\n예) * 오전10시 1차미팅  * 오후3시 내부검토`}
           className="w-full resize-none text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         />
 
@@ -125,10 +211,7 @@ export default function MemoInput({ onParsed, onLoading }: Props) {
               <button
                 key={suggestion}
                 type="button"
-                onMouseDown={(event) => {
-                  event.preventDefault()
-                  insertSuggestion(suggestion)
-                }}
+                onMouseDown={event => { event.preventDefault(); insertSuggestion(suggestion) }}
                 className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50"
               >
                 {suggestion}
@@ -138,31 +221,40 @@ export default function MemoInput({ onParsed, onLoading }: Props) {
         )}
       </div>
 
-      <div className="mt-3 rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-        <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-          <span><strong>/</strong> 프로젝트</span>
-          <span><strong>#</strong> 거래처</span>
-          <span><strong>@</strong> 날짜</span>
-          <span><strong>!</strong> 우선순위</span>
+      {/* 단축어 힌트 */}
+      <div className="mt-2 rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
+        <div className="flex flex-wrap gap-2 text-xs text-gray-400">
+          <span><strong className="text-gray-500">#</strong> 거래처</span>
+          <span><strong className="text-gray-500">/</strong> 프로젝트</span>
+          <span><strong className="text-gray-500">@</strong> 날짜·시간</span>
+          <span><strong className="text-gray-500">@이름</strong> 담당자</span>
+          <span><strong className="text-gray-500">!</strong> 우선순위</span>
+          <span><strong className="text-gray-500">*</strong> 개별일정</span>
         </div>
         {hasMemoShortcuts(shortcuts) && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {shortcuts.projects.map(project => (
-              <span key={`project-${project}`} className={`${hintClass} bg-purple-50 text-purple-700`}>프로젝트 {project}</span>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {shortcuts.projects.map(p => (
+              <span key={`p-${p}`} className={`${hintClass} bg-purple-50 text-purple-700`}>프로젝트 {p}</span>
             ))}
-            {shortcuts.clients.map(client => (
-              <span key={`client-${client}`} className={`${hintClass} bg-indigo-50 text-indigo-700`}>거래처 {client}</span>
+            {shortcuts.clients.map(c => (
+              <span key={`c-${c}`} className={`${hintClass} bg-indigo-50 text-indigo-700`}>거래처 {c}</span>
             ))}
-            {shortcuts.dates.map(date => (
-              <span key={`date-${date}`} className={`${hintClass} bg-blue-50 text-blue-700`}>날짜 {date}</span>
+            {shortcuts.dates.map(d => (
+              <span key={`d-${d}`} className={`${hintClass} bg-blue-50 text-blue-700`}>날짜 {d}</span>
             ))}
-            {shortcuts.times.map(time => (
-              <span key={`time-${time}`} className={`${hintClass} bg-cyan-50 text-cyan-700`}>시간 {time}</span>
+            {shortcuts.times.map(t => (
+              <span key={`t-${t}`} className={`${hintClass} bg-cyan-50 text-cyan-700`}>시간 {t}</span>
             ))}
-            {shortcuts.priorities.map(priority => (
-              <span key={`priority-${priority}`} className={`${hintClass} bg-orange-50 text-orange-700`}>
-                우선순위 {priority === 'high' ? '높음' : priority === 'medium' ? '보통' : '낮음'}
+            {shortcuts.priorities.map(pr => (
+              <span key={`pr-${pr}`} className={`${hintClass} bg-orange-50 text-orange-700`}>
+                {pr === 'high' ? '높음' : pr === 'medium' ? '보통' : '낮음'}
               </span>
+            ))}
+            {shortcuts.people.map(person => (
+              <span key={`pe-${person}`} className={`${hintClass} bg-pink-50 text-pink-700`}>담당자 {person}</span>
+            ))}
+            {shortcuts.scheduleItems.map((item, i) => (
+              <span key={`s-${i}`} className={`${hintClass} bg-teal-50 text-teal-700`}>일정 {item.slice(0, 20)}{item.length > 20 ? '…' : ''}</span>
             ))}
           </div>
         )}
@@ -174,7 +266,7 @@ export default function MemoInput({ onParsed, onLoading }: Props) {
       <div className="flex justify-end mt-3">
         <button
           onClick={handleParse}
-          disabled={!text.trim() || running}
+          disabled={!canRun}
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white text-sm font-medium rounded-lg transition-colors"
         >
           {running ? '실행 중...' : '실행'}

@@ -36,7 +36,7 @@ export default function ClientDetailPanel({ client, onEdit, onDelete, onClose }:
   const today = new Date().toISOString().split('T')[0]
 
   return (
-    <div className="w-80 shrink-0 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
+    <div className="w-1/2 min-w-[420px] shrink-0 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
       {/* 헤더 */}
       <div className="px-5 py-4 border-b border-gray-100">
         <div className="flex items-start justify-between">

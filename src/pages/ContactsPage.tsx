@@ -7,6 +7,8 @@ import type { Contact } from '../types'
 
 const inputClass = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
+type BatchItem = { fileName: string; status: 'pending' | 'done' | 'error'; info?: import('../lib/gemini').ExtractedContactInfo; clientId?: string }
+
 type ContactWithLinks = Contact & {
   clients: { name: string } | null
   projects: { name: string } | null
@@ -69,6 +71,13 @@ export default function ContactsPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
 
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [batchItems, setBatchItems] = useState<BatchItem[]>([])
+  const [batchSelected, setBatchSelected] = useState<Set<number>>(new Set())
+  const [showBatch, setShowBatch] = useState(false)
+  const [batchSaving, setBatchSaving] = useState(false)
+
   const selectedClientProjects = useMemo(() => {
     if (!form.client_id) return projects
     return projects.filter(project => project.client_id === form.client_id)
@@ -81,6 +90,10 @@ export default function ContactsPage() {
 
   const filtered = useMemo(() => {
     const query = search.trim()
+    // 거래처 필터: client_id FK 또는 회사명 fuzzy 매칭
+    const filterClientName = clients.find(c => c.id === clientFilter)?.name ?? ''
+    const filterClientNameNorm = normalizeText(filterClientName)
+
     return contacts.filter(contact => {
       const matchesSearch = !query ||
         contact.name.includes(query) ||
@@ -91,11 +104,14 @@ export default function ContactsPage() {
         (contact.clients?.name ?? '').includes(query) ||
         (contact.projects?.name ?? '').includes(query)
 
-      const matchesClient = !clientFilter || contact.client_id === clientFilter
+      const matchesClient = !clientFilter ||
+        contact.client_id === clientFilter ||
+        (filterClientNameNorm.length > 0 && normalizeText(contact.company ?? '').includes(filterClientNameNorm))
+
       const matchesProject = !projectFilter || contact.project_id === projectFilter
       return matchesSearch && matchesClient && matchesProject
     })
-  }, [clientFilter, contacts, projectFilter, search])
+  }, [clientFilter, clients, contacts, projectFilter, search])
 
   const openCreate = () => {
     setForm(EMPTY_FORM)
@@ -153,10 +169,13 @@ export default function ContactsPage() {
     setProjectFilter('')
   }
 
-  const handleSave = (event: React.SyntheticEvent<HTMLFormElement>) => {
+  const handleSave = async (event: React.SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const payload: Omit<Contact, 'id' | 'created_at'> = {
-      user_id: '',
+    if (saving) return
+    setSaveError(null)
+    setSaving(true)
+
+    const base = {
       name: form.name,
       company: form.company || null,
       title: form.title || null,
@@ -165,15 +184,22 @@ export default function ContactsPage() {
       client_id: form.client_id || null,
       project_id: form.project_id || null,
       note: form.note || null,
-      tags: form.tags ? form.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
-      needs_review: false,
-      source: null,
+      tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+      needs_review: false as boolean | null,
+      source: null as string | null,
     }
 
-    if (modal === 'create') {
-      createContact.mutate(payload, { onSuccess: () => setModal(null) })
-    } else if (modal && typeof modal === 'object') {
-      updateContact.mutate({ id: modal.id, ...payload }, { onSuccess: () => setModal(null) })
+    try {
+      if (modal === 'create') {
+        await createContact.mutateAsync({ user_id: '', ...base })
+      } else if (modal && typeof modal === 'object') {
+        await updateContact.mutateAsync({ id: modal.id, ...base })
+      }
+      setModal(null)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : '저장에 실패했습니다. 다시 시도해 주세요.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -211,10 +237,66 @@ export default function ContactsPage() {
     }
   }, [clients, projects])
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) handleBusinessCardOcr(file)
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
     event.target.value = ''
+    if (!files.length) return
+
+    if (files.length === 1) {
+      handleBusinessCardOcr(files[0])
+      return
+    }
+
+    // 배치 모드
+    const initial: BatchItem[] = files.map(f => ({ fileName: f.name, status: 'pending' }))
+    setBatchItems(initial)
+    setBatchSelected(new Set(initial.map((_, i) => i)))
+    setShowBatch(true)
+    setOcring(true)
+
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const base64 = await fileToBase64(files[i])
+        const info = await extractFromBusinessCard(base64, files[i].type)
+        const companyKey = normalizeText(info.company)
+        const matched = companyKey ? clients.find(c => {
+          const k = normalizeText(c.name)
+          return k.includes(companyKey) || companyKey.includes(k)
+        }) : undefined
+        setBatchItems(prev => prev.map((item, idx) => idx === i ? { ...item, status: 'done', info, clientId: matched?.id } : item))
+      } catch {
+        setBatchItems(prev => prev.map((item, idx) => idx === i ? { ...item, status: 'error' } : item))
+      }
+    }
+    setOcring(false)
+  }
+
+  const handleBatchSave = async () => {
+    setBatchSaving(true)
+    const toSave = batchItems.filter((item, idx) => item.status === 'done' && item.info && batchSelected.has(idx))
+    for (const item of toSave) {
+      try {
+        await createContact.mutateAsync({
+          user_id: '',
+          name: item.info!.name,
+          company: item.info!.company ?? null,
+          title: item.info!.title ?? null,
+          phone: item.info!.phone ?? null,
+          email: item.info!.email ?? null,
+          client_id: item.clientId ?? null,
+          project_id: null,
+          note: item.info!.note ?? null,
+          tags: item.info!.tags?.length ? item.info!.tags : ['명함'],
+          needs_review: true,
+          source: 'card',
+        })
+      } catch (err) {
+        console.error('배치 저장 오류:', err)
+      }
+    }
+    setBatchSaving(false)
+    setShowBatch(false)
+    setBatchItems([])
   }
 
   const handlePaste = useCallback((event: React.ClipboardEvent) => {
@@ -261,7 +343,7 @@ export default function ContactsPage() {
           <button onClick={openCreate} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg">
             + 연락처 추가
           </button>
-          <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+          <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" />
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
         </div>
       </div>
@@ -349,6 +431,65 @@ export default function ContactsPage() {
         </div>
       )}
 
+      {showBatch && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl max-h-[85vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-gray-900">명함 일괄 가져오기 ({batchItems.length}장)</h3>
+              <button onClick={() => { setShowBatch(false); setBatchItems([]) }} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+            </div>
+            {ocring && (
+              <div className="px-6 py-2.5 text-sm text-indigo-600 bg-indigo-50 border-b border-indigo-100">
+                인식 중... ({batchItems.filter(i => i.status !== 'pending').length}/{batchItems.length})
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {batchItems.map((item, idx) => (
+                <div key={idx} className={`flex items-start gap-3 p-3 rounded-lg border ${item.status === 'error' ? 'border-red-100 bg-red-50' : 'border-gray-100 bg-gray-50'}`}>
+                  {item.status === 'done'
+                    ? <input type="checkbox" checked={batchSelected.has(idx)} onChange={e => {
+                        setBatchSelected(prev => { const s = new Set(prev); e.target.checked ? s.add(idx) : s.delete(idx); return s })
+                      }} className="mt-0.5 accent-indigo-600" />
+                    : <div className={`w-4 h-4 mt-0.5 rounded-full shrink-0 ${item.status === 'error' ? 'bg-red-300' : 'bg-gray-300 animate-pulse'}`} />
+                  }
+                  <div className="flex-1 min-w-0">
+                    {item.status === 'done' && item.info ? (
+                      <>
+                        <p className="text-sm font-semibold text-gray-900">{item.info.name}</p>
+                        <p className="text-xs text-gray-500">{[item.info.title, item.info.company].filter(Boolean).join(' · ')}</p>
+                        <p className="text-xs text-gray-400">{[item.info.phone, item.info.email].filter(Boolean).join(' | ')}</p>
+                        {item.clientId && <p className="text-xs text-indigo-500 mt-0.5">거래처 자동 매칭됨</p>}
+                      </>
+                    ) : item.status === 'error' ? (
+                      <p className="text-sm text-red-500">인식 실패: {item.fileName}</p>
+                    ) : (
+                      <p className="text-sm text-gray-400">{item.fileName}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {!ocring && (
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-sm text-gray-500">
+                  {batchSelected.size}건 선택 / 성공 {batchItems.filter(i => i.status === 'done').length}장
+                </span>
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowBatch(false); setBatchItems([]) }} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">취소</button>
+                  <button
+                    onClick={handleBatchSave}
+                    disabled={batchSaving || batchSelected.size === 0}
+                    className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium rounded-lg"
+                  >
+                    {batchSaving ? '저장 중...' : `${batchSelected.size}건 저장`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {modal !== null && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
@@ -397,9 +538,14 @@ export default function ContactsPage() {
               <Field label="메모">
                 <textarea value={form.note} onChange={updateField('note')} rows={2} className={`${inputClass} resize-none`} placeholder="관계 메모, 소개 경로, 특이사항" />
               </Field>
+              {saveError && (
+                <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{saveError}</p>
+              )}
               <div className="flex justify-end gap-2 pt-1">
                 <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">취소</button>
-                <button type="submit" className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg">저장</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-medium rounded-lg">
+                  {saving ? '저장 중...' : '저장'}
+                </button>
               </div>
             </form>
           </div>

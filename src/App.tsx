@@ -13,6 +13,9 @@ import ProjectsPage from './pages/ProjectsPage'
 import CalendarPage from './pages/CalendarPage'
 import TodosPage from './pages/TodosPage'
 import ContactsPage from './pages/ContactsPage'
+import BillingPage from './pages/BillingPage'
+import DeadlinesPage from './pages/DeadlinesPage'
+import WorkspacePage from './pages/WorkspacePage'
 
 const queryClient = new QueryClient()
 
@@ -65,6 +68,9 @@ export default function App() {
             <Route path="calendar" element={<CalendarPage />} />
             <Route path="todos" element={<TodosPage />} />
             <Route path="contacts" element={<ContactsPage />} />
+            <Route path="billing" element={<BillingPage />} />
+            <Route path="deadlines" element={<DeadlinesPage />} />
+            <Route path="workspace/:type/:id" element={<WorkspacePage />} />
           </Route>
         </Routes>
       </BrowserRouter>

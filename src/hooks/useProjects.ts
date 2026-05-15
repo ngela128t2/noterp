@@ -22,11 +22,11 @@ export function useClientProjects(clientId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('*, milestones(id, title, due_date, completed)')
+        .select('*, milestones(id, title, due_date, time, completed, created_at)')
         .eq('client_id', clientId)
         .order('created_at', { ascending: false })
       if (error) throw error
-      return data as (Project & { milestones: { id: string; title: string; due_date: string | null; completed: boolean }[] })[]
+      return data as (Project & { milestones: { id: string; title: string; due_date: string | null; time: string | null; completed: boolean; created_at: string }[] })[]
     },
     enabled: !!clientId,
   })
@@ -89,6 +89,34 @@ export function useDeleteProject() {
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+  })
+}
+
+export function useAddMilestone() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ project_id, title, due_date, time }: { project_id: string; title: string; due_date: string | null; time?: string | null }) => {
+      const { data, error } = await supabase
+        .from('milestones')
+        .insert({ project_id, title, due_date, time: time ?? null, completed: false })
+        .select()
+        .single()
+      if (error) throw error
+      return data as Milestone
+    },
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ['milestones', vars.project_id] }),
+  })
+}
+
+export function useDeleteMilestone() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: string; projectId: string }) => {
+      const { error } = await supabase.from('milestones').delete().eq('id', id)
+      if (error) throw error
+      return projectId
+    },
+    onSuccess: (projectId) => qc.invalidateQueries({ queryKey: ['milestones', projectId] }),
   })
 }
 
