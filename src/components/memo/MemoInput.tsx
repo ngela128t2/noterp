@@ -135,7 +135,7 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <label className="text-sm font-semibold text-gray-700">메모 입력</label>
         <div className="flex items-center gap-3">
           <button type="button" onClick={() => setExpanded(v => !v)} className="text-xs text-gray-400 hover:text-indigo-600 transition-colors">
@@ -145,52 +145,8 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
         </div>
       </div>
 
-      {/* 1차: 거래처·프로젝트·날짜 선택 */}
-      <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium text-gray-500">연결 선택 <span className="text-gray-400 font-normal">(선택 사항)</span></span>
-          {hasPickerContext && (
-            <button type="button" onClick={clearPickers} className="text-xs text-gray-400 hover:text-gray-600">
-              초기화
-            </button>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">거래처</label>
-            <select
-              value={pickedClientId}
-              onChange={e => { setPickedClientId(e.target.value); setPickedProjectId('') }}
-              className={selCls}
-            >
-              <option value="">— 선택 안 함 —</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">프로젝트</label>
-            <select
-              value={pickedProjectId}
-              onChange={e => setPickedProjectId(e.target.value)}
-              className={selCls}
-            >
-              <option value="">— 선택 안 함 —</option>
-              {pickerProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">날짜</label>
-            <input type="date" value={pickedDate} onChange={e => setPickedDate(e.target.value)} className={selCls} />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">시간</label>
-            <input type="time" value={pickedTime} onChange={e => setPickedTime(e.target.value)} className={selCls} />
-          </div>
-        </div>
-      </div>
-
-      {/* 2차: 자유 텍스트 */}
-      <div className="relative">
+      {/* 1차: 자유 텍스트 (제일 위) */}
+      <div className="relative mb-3">
         <textarea
           ref={textareaRef}
           value={text}
@@ -222,6 +178,42 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
             ))}
           </div>
         )}
+      </div>
+
+      {/* 2차: 거래처·프로젝트·날짜 선택 */}
+      <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-medium text-gray-500">연결 선택 <span className="text-gray-400 font-normal">(선택 사항)</span></span>
+          {hasPickerContext && (
+            <button type="button" onClick={clearPickers} className="text-xs text-gray-400 hover:text-gray-600">
+              초기화
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">거래처</label>
+            <select value={pickedClientId} onChange={e => { setPickedClientId(e.target.value); setPickedProjectId('') }} className={selCls}>
+              <option value="">— 선택 안 함 —</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">프로젝트</label>
+            <select value={pickedProjectId} onChange={e => setPickedProjectId(e.target.value)} className={selCls}>
+              <option value="">— 선택 안 함 —</option>
+              {pickerProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">날짜</label>
+            <input type="date" value={pickedDate} onChange={e => setPickedDate(e.target.value)} className={selCls} />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-400 mb-1">시간</label>
+            <input type="time" value={pickedTime} onChange={e => setPickedTime(e.target.value)} className={selCls} />
+          </div>
+        </div>
       </div>
 
       {/* 단축어 힌트 */}
