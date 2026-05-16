@@ -27,4 +27,10 @@ CREATE TABLE IF NOT EXISTS tax_intakes (
 );
 
 ALTER TABLE tax_intakes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "tax_intakes_user" ON tax_intakes USING (user_id = auth.uid());
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'tax_intakes' AND policyname = 'tax_intakes_user'
+  ) THEN
+    EXECUTE 'CREATE POLICY "tax_intakes_user" ON tax_intakes USING (user_id = auth.uid())';
+  END IF;
+END $$;
