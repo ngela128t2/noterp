@@ -151,13 +151,10 @@ export default function MemoPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
-  const lastContext = useWorkspaceStore(s => s.lastContext)
-  const rawRouteState = location.state as { clientId?: string; projectId?: string } | null
-  // 명시적 진입(워크스페이스 메모 버튼)일 때만 컨텍스트 사용
-  // lastContext가 project 타입이면 프로젝트를 자동으로 채우지 않음 (의도치 않은 연결 방지)
-  const routeState = rawRouteState ?? (lastContext?.type === 'client'
-    ? { clientId: lastContext.id }
-    : null)
+  useWorkspaceStore(s => s.lastContext) // 구독 유지 (lastContext 저장용)
+  // 워크스페이스 "메모 추가" 버튼으로 명시적 진입한 경우만 거래처/프로젝트 pre-fill
+  // FAB·사이드바·직접 진입 시에는 항상 빈 상태로 시작
+  const routeState = location.state as { clientId?: string; projectId?: string } | null
   const [state, setState] = useState<State>('idle')
   const [parsed, setParsed] = useState<ParsedResult | null>(null)
   const [rawText, setRawText] = useState('')

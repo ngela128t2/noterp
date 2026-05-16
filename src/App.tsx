@@ -21,8 +21,17 @@ import TaxIntakePage from './pages/TaxIntakePage'
 import TaxIntakeNewPage from './pages/TaxIntakeNewPage'
 import TaxIntakeDetailPage from './pages/TaxIntakeDetailPage'
 
-// FullCalendar는 무거우므로 lazy load
-const CalendarPage = lazy(() => import('./pages/CalendarPage'))
+// FullCalendar lazy load — 배포 후 청크 hash 변경 시 자동 리로드
+const CalendarPage = lazy(() =>
+  import('./pages/CalendarPage').catch(() => {
+    // chunk 파일 URL이 바뀐 경우(새 배포) 한 번만 새로고침
+    if (!sessionStorage.getItem('cal_reloaded')) {
+      sessionStorage.setItem('cal_reloaded', '1')
+      window.location.reload()
+    }
+    return { default: () => null as any }
+  })
+)
 
 // #6: staleTime 5분 — 포커스마다 refetch 방지
 const queryClient = new QueryClient({
