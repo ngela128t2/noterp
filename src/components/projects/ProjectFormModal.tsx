@@ -73,8 +73,10 @@ export default function ProjectFormModal({ initial, initialMilestones, clients, 
   const handleSubmit = (event: React.SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault()
     const validMilestones = milestones.filter(milestone => milestone.title.trim())
+    // user_id는 훅에서 auth로 처리하므로 폼에서 제외 (빈 문자열이 UUID 오류 유발)
+    const { user_id: _uid, ...rest } = form
     onSave({
-      ...form,
+      ...rest,
       client_id: form.client_id || null,
       type: form.type || null,
       type_detail: form.type_detail || null,
