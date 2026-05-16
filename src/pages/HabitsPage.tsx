@@ -7,9 +7,6 @@ import {
   HABIT_CATEGORIES, HABIT_COLORS, COLOR_CLASS, DAY_LABELS,
   type Habit, type HabitColor, type RepeatRule,
 } from '../hooks/useHabits'
-import { getLocalDate } from '../lib/dateUtils'
-
-const today = getLocalDate()
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
 const DOW = new Date().getDay()
 
