@@ -15,6 +15,7 @@ import ContactsPage from './pages/ContactsPage'
 import BillingPage from './pages/BillingPage'
 import DeadlinesPage from './pages/DeadlinesPage'
 import WorkspacePage from './pages/WorkspacePage'
+import HabitsPage from './pages/HabitsPage'
 import TaxAgencyPage from './pages/TaxAgencyPage'
 import TaxClientPage from './pages/TaxClientPage'
 import TaxIntakePage from './pages/TaxIntakePage'
@@ -79,6 +80,7 @@ export default function App() {
             <Route path="clients" element={<ClientsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="calendar" element={<CalendarPage />} />
+            <Route path="habits" element={<HabitsPage />} />
             <Route path="todos" element={<TodosPage />} />
             <Route path="contacts" element={<ContactsPage />} />
             <Route path="billing" element={<BillingPage />} />

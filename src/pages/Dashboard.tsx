@@ -8,6 +8,7 @@ import { useDeadlineDashboardStats } from '../hooks/useDeadlines'
 import { useOpenLoops } from '../hooks/useOpenLoops'
 import { useSnoozeTodo, useToggleTodo } from '../hooks/useTodos'
 import { generateBriefingEdge as generateDailyBriefing } from '../lib/edgeFunctions'
+import { useHabits, useTodayHabitLogs, useCompleteHabit, useUncompleteHabit, isScheduledToday, COLOR_CLASS } from '../hooks/useHabits'
 import type { OpenLoop } from '../hooks/useOpenLoops'
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -41,6 +42,12 @@ export default function Dashboard() {
   const snoozeTodo = useSnoozeTodo()
   const completeEvent = useCompleteCalendarEvent()
   const navigate = useNavigate()
+  const { data: habits = [] } = useHabits()
+  const { data: habitLogs = [] } = useTodayHabitLogs()
+  const completeHabit = useCompleteHabit()
+  const uncompleteHabit = useUncompleteHabit()
+  const completedHabitIds = new Set(habitLogs.map(l => l.habit_id))
+  const todayHabits = habits.filter(isScheduledToday)
 
   const todayStr = getLocalDate()
   const [selectedDate, setSelectedDate] = useState(todayStr)
@@ -178,6 +185,41 @@ export default function Dashboard() {
 
         {/* ━━━ 왼쪽 ━━━ */}
         <div className="xl:col-span-2 space-y-8">
+
+          {/* 🔁 오늘의 습관 루틴 (습관이 있을 때만) */}
+          {todayHabits.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🔁</span>
+                  <h2 className="text-sm font-semibold text-gray-800">오늘의 루틴</h2>
+                  <span className="text-xs text-gray-400">{completedHabitIds.size}/{todayHabits.length}</span>
+                </div>
+                <button onClick={() => navigate('/habits')} className="text-[10px] text-indigo-500 hover:underline">전체 보기 →</button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {todayHabits.map(h => {
+                  const done = completedHabitIds.has(h.id)
+                  const cl = COLOR_CLASS[h.color]
+                  return (
+                    <button
+                      key={h.id}
+                      onClick={() => done ? uncompleteHabit.mutate(h) : completeHabit.mutate({ habit: h })}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        done
+                          ? `${cl.bg} ${cl.text} border-transparent opacity-60`
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${done ? cl.dot : 'bg-gray-300'}`} />
+                      <span className={done ? 'line-through' : ''}>{h.title}</span>
+                      {h.streak > 1 && <span className="text-orange-400">🔥{h.streak}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          )}
 
           {/* ① 지금 해야 하는 것 — PRIMARY: 강하게 강조 */}
           <section>

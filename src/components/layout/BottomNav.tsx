@@ -11,6 +11,7 @@ const mainItems = [
 ]
 
 const moreItems = [
+  { to: '/habits',    label: '습관 루틴', emoji: '🔁' },
   { to: '/calendar',  label: '일정',     emoji: '📅' },
   { to: '/todos',     label: 'Follow-up', emoji: '✓' },
   { to: '/deadlines', label: '마감 기한', emoji: '⏰' },
