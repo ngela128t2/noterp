@@ -8,6 +8,40 @@ type RecordWithLinks = BillingRecord & {
   billing_contracts: { service_category: string; billing_cycle: string } | null
 }
 
+export function useClientBillingContract(clientId: string) {
+  return useQuery({
+    queryKey: ['billing_contracts', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('billing_contracts')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (error) throw error
+      return data as BillingContract | null
+    },
+    enabled: !!clientId,
+  })
+}
+
+export function useClientBillingRecords(clientId: string) {
+  return useQuery({
+    queryKey: ['billing_records', clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('billing_records')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('billed_at', { ascending: false })
+      if (error) throw error
+      return data as BillingRecord[]
+    },
+    enabled: !!clientId,
+  })
+}
+
 export function useBillingContracts() {
   return useQuery({
     queryKey: ['billing_contracts'],
