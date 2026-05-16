@@ -91,6 +91,8 @@ export interface CalendarEvent {
   location: string | null
   client_id: string | null
   project_id: string | null
+  completed: boolean
+  completed_at: string | null
   created_at: string
 }
 
@@ -173,7 +175,11 @@ export interface DeadlineInstance {
   created_at: string
 }
 
+export type MemoType = '일정' | 'TODO' | 'CRM' | '프로젝트_로그' | '회의메모' | '연구메모' | '개인메모'
+
 export interface ParsedResult {
+  memo_type?: MemoType
+  confidence?: number
   events: Array<{
     title: string
     date: string | null
@@ -203,5 +209,6 @@ export interface ParsedResult {
     company: string | null
     title: string | null
   }>
+  tags?: string[]
   raw_memo: string
 }

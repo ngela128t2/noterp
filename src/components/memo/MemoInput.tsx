@@ -94,7 +94,10 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
     try {
       const merged = parseMemoShortcuts(fullText)
       const result = await Promise.race([
-        parseMemo(fullText, merged),
+        parseMemo(fullText, merged, {
+          existingClients: clients.map(c => c.name),
+          existingProjects: projects.map(p => p.name),
+        }),
         new Promise<never>((_, reject) => {
           window.setTimeout(() => reject(new Error('분석 시간이 너무 오래 걸립니다. 잠시 후 다시 실행해 주세요.')), 45000)
         }),

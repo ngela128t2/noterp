@@ -38,11 +38,14 @@ export const ParsedContactSchema = z.object({
 })
 
 export const ParsedResultSchema = z.object({
+  memo_type: z.enum(['일정','TODO','CRM','프로젝트_로그','회의메모','연구메모','개인메모']).optional(),
+  confidence: z.number().min(0).max(1).optional(),
   events: z.array(ParsedEventSchema).default([]),
   todos: z.array(ParsedTodoSchema).default([]),
   clients: z.array(ParsedClientSchema).default([]),
   projects: z.array(ParsedProjectSchema).default([]),
   contacts: z.array(ParsedContactSchema).default([]),
+  tags: z.array(z.string()).optional().default([]),
   raw_memo: z.string().default(''),
 })
 

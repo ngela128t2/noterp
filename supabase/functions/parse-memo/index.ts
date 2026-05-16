@@ -1,24 +1,72 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
 
-const SYSTEM_PROMPT = `당신은 회계법인의 업무 메모를 분석하는 AI 에이전트입니다.
-입력된 자유형 텍스트에서 일정, 할 일, 거래처, 프로젝트, 연락처를 추출해 JSON으로 반환하세요.
-오늘 날짜를 기준으로 상대 날짜와 요일 표현을 YYYY-MM-DD로 변환하세요.
-시간 표현이 있으면 24시간 HH:mm 형식으로 변환하세요.
+const SYSTEM_PROMPT = `당신은 회계법인 업무 메모를 분석하는 AI 에이전트입니다.
+자유형 텍스트에서 일정·할 일·거래처·프로젝트·연락처를 추출해 JSON으로 반환하세요.
 
-반환 형식:
+[날짜·시간 처리]
+오늘 날짜 기준으로 다음 표현을 YYYY-MM-DD로 변환:
+- 내일/모레/다음주 화요일/이번주 금요일/격주 금요일 등 상대 표현
+- "2시간 뒤" → 오늘 날짜를 date로, 현재시간+2h를 time으로
+- "부가세 끝나고" → 부가세 신고 마감(1/25, 4/25, 7/25, 10/25) 이후로 date=null, memo에 맥락 기록
+- "감사보고서 제출 전" → date=null, memo에 맥락 기록
+- 시간: 24시간 HH:mm 형식
+
+[기존 엔티티 매칭 — 매우 중요]
+사용자가 제공한 기존 거래처·프로젝트 목록에서 fuzzy 매칭:
+- 메모에 유사한 이름이 등장하면 목록의 정확한 이름을 그대로 사용
+- is_new: false 표시, 신규 생성 금지
+- 목록에 없는 경우만 is_new: true
+예) "독서동아리" → 기존 "독서모임"이 유사 → "독서모임"으로 반환
+
+[메모 유형 분류]
+memo_type을 하나 선택:
+- "일정": 날짜·시간 명확, 방문·참석·약속
+- "TODO": 해야 할 일, 확인·연락·제출 필요
+- "CRM": 거래처·사람 관계 업데이트, 통화·방문 기록
+- "프로젝트_로그": 프로젝트 진행상황 기록
+- "회의메모": 회의 내용·결론·액션아이템
+- "연구메모": 법률·세무·제도 전문 지식
+- "개인메모": 개인 생각·아이디어·육아·일상
+
+[confidence]
+0.0~1.0로 판단:
+- 0.9+: 거래처/프로젝트 명확 매칭 + 날짜 확실 + 의도 명확
+- 0.7~0.89: 대부분 파악 가능, 일부 추정
+- 0.5~0.69: 새 엔티티 생성 필요하거나 의도 불명확
+- 0.5 미만: 파악 어려움
+
+[중복 방지]
+- events에 추가한 날짜+내용은 milestones/todos에 중복 추가 금지
+- *로 시작하는 항목은 회의 안건 → 별도 milestone/todo 생성 금지
+- 하나의 사건을 event + milestone + todo 동시에 만들지 말 것
+
+[태그]
+tags: 2~5개 한국어 업무 키워드. 고유명사 제외.
+
+반환 형식 (순수 JSON, 마크다운 없이):
 {
+  "memo_type": "일정"|"TODO"|"CRM"|"프로젝트_로그"|"회의메모"|"연구메모"|"개인메모",
+  "confidence": 0.0~1.0,
   "events": [{ "title": string, "date": string|null, "time": string|null, "location": string|null, "client_name": string|null }],
   "todos": [{ "title": string, "due_date": string|null, "priority": "high"|"medium"|"low"|null, "assignee": string|null }],
   "clients": [{ "name": string, "action": string|null, "is_new": boolean }],
   "projects": [{ "name": string, "client_name": string|null, "milestone": string|null, "milestones": [{"title": string, "due_date": string|null}]|null }],
   "contacts": [{ "name": string, "company": string|null, "title": string|null }],
+  "tags": ["string"],
   "raw_memo": string
-}
-JSON만 반환하고, 마크다운 코드블록 없이 순수 JSON만 반환하세요.`
+}`
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+function errResp(step: string, message: string, status = 500) {
+  console.error(`[parse-memo][${step}]`, message)
+  return new Response(
+    JSON.stringify({ error: message, step }),
+    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  )
 }
 
 Deno.serve(async (req) => {
@@ -26,35 +74,75 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  let text: string, today: string, shortcutText: string | undefined
+  let existingClients: string[] = []
+  let existingProjects: string[] = []
   try {
-    const { text, today, shortcutText } = await req.json()
+    const body = await req.json()
+    text = body.text
+    today = body.today
+    shortcutText = body.shortcutText
+    existingClients = body.existingClients ?? []
+    existingProjects = body.existingProjects ?? []
+    if (!text && !shortcutText) {
+      return errResp('request_parse', '메모 텍스트가 비어 있습니다.', 400)
+    }
+  } catch (e) {
+    return errResp('request_parse', `요청 파싱 실패: ${String(e)}`, 400)
+  }
 
-    const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
+  if (!apiKey) {
+    return errResp('env_check', 'ANTHROPIC_API_KEY가 설정되지 않았습니다.')
+  }
 
+  // 기존 엔티티 컨텍스트 구성
+  const entityContext = [
+    existingClients.length > 0
+      ? `기존 거래처 (유사하면 정확한 이름 사용, is_new: false):\n${existingClients.join(', ')}`
+      : '',
+    existingProjects.length > 0
+      ? `기존 프로젝트 (유사하면 정확한 이름 사용):\n${existingProjects.join(', ')}`
+      : '',
+  ].filter(Boolean).join('\n\n')
+
+  const userMessage = [
+    `오늘 날짜: ${today}`,
+    shortcutText ?? '',
+    entityContext,
+    `\n메모:\n${text}`,
+  ].filter(Boolean).join('\n')
+
+  let raw: string
+  try {
+    const client = new Anthropic({ apiKey })
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{
-        role: 'user',
-        content: `오늘 날짜: ${today}${shortcutText ?? ''}\n\n메모:\n${text}`,
-      }],
+      messages: [{ role: 'user', content: userMessage }],
     })
-
     const content = message.content[0]
-    if (content.type !== 'text') throw new Error('Unexpected response type')
-
-    const raw = content.text.trim()
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('JSON 추출 실패')
-
-    return new Response(jsonMatch[0], {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    if (content.type !== 'text') {
+      return errResp('claude_response', `예상치 못한 응답 타입: ${content.type}`)
+    }
+    raw = content.text.trim()
+  } catch (e) {
+    return errResp('claude_api', `Claude API 오류: ${String(e)}`)
   }
+
+  const jsonMatch = raw.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) {
+    return errResp('json_extract', `JSON 추출 실패. 원시 응답: ${raw.slice(0, 200)}`)
+  }
+
+  try {
+    JSON.parse(jsonMatch[0])
+  } catch (e) {
+    return errResp('json_parse', `JSON 파싱 실패: ${String(e)}`)
+  }
+
+  return new Response(jsonMatch[0], {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
 })

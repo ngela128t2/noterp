@@ -1,8 +1,9 @@
 ﻿import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { useWorkspaceStore } from '../store/workspaceStore'
 import MemoInput from '../components/memo/MemoInput'
-import ParseResultCard from '../components/memo/ParseResultCard'
+import ParseResultCard, { type ContextClient, type ContextProject } from '../components/memo/ParseResultCard'
 import { normalizeMemoName, normalizeTimeToken, parseMemoShortcuts } from '../lib/memoShortcuts'
 import { supabase } from '../lib/supabase'
 import type { ParsedResult } from '../types'
@@ -132,13 +133,24 @@ export default function MemoPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
-  const routeState = location.state as { clientId?: string; projectId?: string } | null
+  const lastContext = useWorkspaceStore(s => s.lastContext)
+  const rawRouteState = location.state as { clientId?: string; projectId?: string } | null
+  // 사이드바에서 직접 진입 시 lastContext를 기본값으로 사용
+  const routeState = rawRouteState ?? (lastContext
+    ? (lastContext.type === 'client'
+        ? { clientId: lastContext.id }
+        : { projectId: lastContext.id })
+    : null)
   const [state, setState] = useState<State>('idle')
   const [parsed, setParsed] = useState<ParsedResult | null>(null)
   const [rawText, setRawText] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [isAutoSave, setIsAutoSave] = useState(false)
   const [logs, setLogs] = useState<MemoLog[]>([])
   const [savedContext, setSavedContext] = useState<SavedContext | null>(null)
+  // 거래처/프로젝트 매칭 컨텍스트 (ParseResultCard에 전달)
+  const [contextClients, setContextClients] = useState<ContextClient[]>([])
+  const [contextProjects, setContextProjects] = useState<ContextProject[]>([])
 
   const loadLogs = async () => {
     const { data, error } = await supabase
@@ -149,42 +161,70 @@ export default function MemoPage() {
     if (!error) setLogs((data ?? []) as MemoLog[])
   }
 
+  // 거래처/프로젝트 컨텍스트 로드 (매칭 표시용)
+  const loadContext = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const [{ data: clients }, { data: projects }] = await Promise.all([
+      supabase.from('clients').select('id, name, service_category').eq('user_id', user.id),
+      supabase.from('projects').select('id, name, client_id').eq('user_id', user.id),
+    ])
+    setContextClients((clients ?? []) as ContextClient[])
+    setContextProjects((projects ?? []) as ContextProject[])
+  }
+
   useEffect(() => {
     loadLogs()
+    loadContext()
   }, [])
 
-  const handleParsed = (result: ParsedResult) => {
+  const handleParsed = async (result: ParsedResult) => {
     setParsed(result)
     setRawText(result.raw_memo ?? '')
     setSaveError(null)
-    setState('parsed')
+    if ((result.confidence ?? 0) >= 0.9) {
+      await handleApprove({ parsedOverride: result, rawTextOverride: result.raw_memo ?? '', auto: true })
+    } else {
+      setState('parsed')
+    }
   }
 
-  const handleApprove = async () => {
-    if (!parsed) return
+  const handleApprove = async (opts?: { parsedOverride: ParsedResult; rawTextOverride: string; auto?: boolean }) => {
+    const ep = opts?.parsedOverride ?? parsed
+    const rt = opts?.rawTextOverride ?? rawText
+    if (!ep) return
+    if (opts?.auto) setIsAutoSave(true)
+    else setIsAutoSave(false)
     setState('saving')
     setSaveError(null)
 
+    let step = 'init'
+    let memoId: string | null = null
+
     try {
+      step = 'auth'
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
       if (!user) throw new Error('로그인이 필요합니다.')
 
-      const shortcuts = parseMemoShortcuts(rawText)
-      const memoTitle = cleanMemoTitle(rawText)
+      const shortcuts = parseMemoShortcuts(rt)
+      const memoTitle = cleanMemoTitle(rt)
       const primaryDueDate = shortcuts.dates[0]
-        ?? parsed.events?.find(event => event.date)?.date
-        ?? parsed.todos?.find(todo => todo.due_date)?.due_date
+        ?? ep.events?.find(event => event.date)?.date
+        ?? ep.todos?.find(todo => todo.due_date)?.due_date
         ?? null
 
-      const { error: memoError } = await supabase.from('memos').insert({
+      step = 'memos_insert'
+      const { data: memoRow, error: memoError } = await supabase.from('memos').insert({
         user_id: user.id,
         raw_text: rawText,
         parsed_result: parsed,
         status: 'approved',
-      })
+      }).select('id').single()
       if (memoError) throw memoError
+      memoId = memoRow?.id ?? null
 
+      step = 'clients_read'
       const { data: existingClients = [], error: clientReadError } = await supabase
         .from('clients')
         .select('id, name, memo, needs_review, source')
@@ -203,8 +243,8 @@ export default function MemoPage() {
       const referencedClientNames: string[] = []
       for (const raw of [
         ...explicitClientNames,
-        ...(parsed.events ?? []).map(e => e.client_name).filter((n): n is string => Boolean(n)),
-        ...(parsed.projects ?? []).map(p => p.client_name).filter((n): n is string => Boolean(n)),
+        ...(ep.events ?? []).map(e => e.client_name).filter((n): n is string => Boolean(n)),
+        ...(ep.projects ?? []).map(p => p.client_name).filter((n): n is string => Boolean(n)),
       ]) {
         const name = raw.trim()
         if (!name) continue
@@ -217,7 +257,7 @@ export default function MemoPage() {
         if (clientByName.has(key)) continue
         const { data, error } = await supabase
           .from('clients')
-          .insert({ user_id: user.id, name, code: null, memo: appendMemo(null, rawText), needs_review: true, source: 'memo' })
+          .insert({ user_id: user.id, name, code: null, memo: appendMemo(null, rt), needs_review: true, source: 'memo' })
           .select('id, name, memo, needs_review, source')
           .single()
         if (error) throw error
@@ -227,7 +267,7 @@ export default function MemoPage() {
       for (const name of referencedClientNames) {
         const existing = clientByName.get(normalizeMemoName(name))
         if (!existing) continue
-        const nextMemo = appendMemo(existing.memo, rawText)
+        const nextMemo = appendMemo(existing.memo, rt)
         const { error } = await supabase.from('clients').update({ memo: nextMemo }).eq('id', existing.id)
         if (error) throw error
         existing.memo = nextMemo
@@ -241,6 +281,7 @@ export default function MemoPage() {
         })
       }
 
+      step = 'projects_read'
       const { data: existingProjects = [], error: projectReadError } = await supabase
         .from('projects')
         .select('id, name, memo, client_id')
@@ -255,7 +296,7 @@ export default function MemoPage() {
       for (const name of shortcuts.projects) {
         projectInputMap.set(normalizeMemoName(name), { name, client_name: explicitClientNames[0] ?? null, milestone: memoTitle, milestones: null })
       }
-      const parsedExistingProjects = (parsed.projects ?? []).filter(p => projectByName.has(normalizeMemoName(p.name)))
+      const parsedExistingProjects = (ep.projects ?? []).filter(p => projectByName.has(normalizeMemoName(p.name)))
       for (const p of parsedExistingProjects) {
         const key = normalizeMemoName(p.name)
         const existing = projectInputMap.get(key)
@@ -277,7 +318,7 @@ export default function MemoPage() {
         const projectClient = project.client_name ? clientByName.get(normalizeMemoName(project.client_name)) ?? hintedClient : hintedClient
 
         if (existing) {
-          const nextMemo = appendMemo(existing.memo, rawText)
+          const nextMemo = appendMemo(existing.memo, rt)
           const { error } = await supabase.from('projects').update({ memo: nextMemo }).eq('id', existing.id)
           if (error) throw error
           existing.memo = nextMemo
@@ -300,7 +341,7 @@ export default function MemoPage() {
             end_date: null,
             status: 'in_progress',
             manager_id: null,
-            memo: appendMemo(null, rawText),
+            memo: appendMemo(null, rt),
             needs_review: true,
             source: 'memo',
           })
@@ -322,7 +363,7 @@ export default function MemoPage() {
 
       // 날짜 fallback 체인: shortcuts.dates → parsed milestones → primaryDueDate
       const bestDate = shortcuts.dates[0]
-        ?? parsed.projects?.flatMap(p => p.milestones ?? []).find(m => m.due_date)?.due_date
+        ?? ep.projects?.flatMap(p => p.milestones ?? []).find(m => m.due_date)?.due_date
         ?? primaryDueDate
 
       const eventInputs: Array<{ title: string; date: string | null; time: string | null; location: string | null; client_name: string | null }> =
@@ -331,18 +372,33 @@ export default function MemoPage() {
               const { title, time } = parseScheduleItemTime(item)
               return { title: title || memoTitle, date: bestDate, time, location: null, client_name: explicitClientNames[0] ?? null }
             })
-          : parsed.events?.length
-            ? parsed.events.map(e => ({ ...e, date: e.date ?? bestDate, time: e.time ?? shortcuts.times[0] ?? null }))
+          : ep.events?.length
+            ? ep.events.map(e => ({ ...e, date: e.date ?? bestDate, time: e.time ?? shortcuts.times[0] ?? null }))
             : (bestDate || shortcuts.times.length)
               ? [{ title: memoTitle, date: bestDate, time: shortcuts.times[0] ?? null, location: null, client_name: explicitClientNames[0] ?? null }]
               : []
 
+      step = 'calendar_events_insert'
+      // 같은 날짜+제목 이벤트 중복 방지를 위해 기존 이벤트 조회
+      const { data: existingEvents = [] } = await supabase
+        .from('calendar_events')
+        .select('title, date')
+        .eq('user_id', user.id)
+      const existingEventKeys = new Set(
+        (existingEvents ?? []).map((e: { title: string; date: string }) => `${normalizeMemoName(e.title)}|${e.date}`),
+      )
+
       for (const event of eventInputs) {
         if (!event.date) continue
+        const eventTitle = event.title || memoTitle
+        const dupKey = `${normalizeMemoName(eventTitle)}|${event.date}`
+        if (existingEventKeys.has(dupKey)) continue   // 중복 스킵
+        existingEventKeys.add(dupKey)
+
         const eventClient = event.client_name ? clientByName.get(normalizeMemoName(event.client_name)) : null
         const { error } = await supabase.from('calendar_events').insert({
           user_id: user.id,
-          title: event.title || memoTitle,
+          title: eventTitle,
           date: event.date,
           time: event.time ?? null,
           location: event.location ?? null,
@@ -352,7 +408,8 @@ export default function MemoPage() {
         if (error) throw error
       }
 
-      for (const todo of parsed.todos ?? []) {
+      step = 'todos_insert'
+      for (const todo of ep.todos ?? []) {
         const { error } = await supabase.from('todos').insert({
           user_id: user.id,
           title: todo.title,
@@ -364,6 +421,7 @@ export default function MemoPage() {
         if (error) throw error
       }
 
+      step = 'contacts_read'
       const { data: existingContacts = [], error: contactReadError } = await supabase
         .from('contacts')
         .select('id, name, note')
@@ -375,8 +433,8 @@ export default function MemoPage() {
       // Claude 파싱 연락처 + @이름 멘션 병합
       type ContactInput = { name: string; company?: string | null; title?: string | null }
       const allContacts: ContactInput[] = [
-        ...(parsed.contacts ?? []).filter(c => c.name?.trim()),
-        ...shortcuts.people.filter(name => !parsed.contacts?.some(c => normalizeMemoName(c.name) === normalizeMemoName(name))).map(name => ({ name })),
+        ...(ep.contacts ?? []).filter(c => c.name?.trim()),
+        ...shortcuts.people.filter(name => !ep.contacts?.some(c => normalizeMemoName(c.name) === normalizeMemoName(name))).map(name => ({ name })),
       ]
 
       for (const contact of allContacts) {
@@ -384,7 +442,7 @@ export default function MemoPage() {
         const key = normalizeMemoName(contact.name)
         const existing = contactByName.get(key)
         if (existing) {
-          const nextNote = appendMemo(existing.note, rawText)
+          const nextNote = appendMemo(existing.note, rt)
           const { error } = await supabase.from('contacts').update({ note: nextNote, client_id: primaryClientId, project_id: primaryProjectId }).eq('id', existing.id)
           if (error) throw error
           existing.note = nextNote
@@ -397,7 +455,7 @@ export default function MemoPage() {
           title: contact.title ?? null,
           client_id: primaryClientId,
           project_id: primaryProjectId,
-          note: appendMemo(null, rawText),
+          note: appendMemo(null, rt),
           tags: ['메모'],
           needs_review: true,
           source: 'memo',
@@ -429,9 +487,14 @@ export default function MemoPage() {
       setState('saved')
       setParsed(null)
     } catch (error) {
-      console.error(error)
-      setSaveError(error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.')
+      const msg = error instanceof Error ? error.message : String(error)
+      console.error(`[handleApprove][${step}]`, error)
+      setSaveError(`[${step}] ${msg}`)
       setState('parsed')
+      // memos_insert 이후 단계 실패 시 메모를 rejected로 변경 (부분 저장 방지)
+      if (memoId && step !== 'memos_insert') {
+        await supabase.from('memos').update({ status: 'rejected' }).eq('id', memoId)
+      }
     }
   }
 
@@ -452,104 +515,140 @@ export default function MemoPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-4 lg:p-6">
       <h2 className="text-2xl font-bold text-gray-900 mb-1">메모 입력</h2>
-      <p className="text-sm text-gray-500 mb-6">Enter로 실행하고, 승인하면 연결된 거래처/프로젝트/일정/할 일에 반영합니다.</p>
+      <p className="text-sm text-gray-500 mb-4">Enter로 실행하고, 승인하면 연결된 거래처/프로젝트/일정/할 일에 반영합니다.</p>
 
-      {(state === 'idle' || state === 'loading') && (
-        <div className="space-y-4">
-          <MemoInput
-            onParsed={handleParsed}
-            onLoading={(loading) => setState(current => loading ? 'loading' : current === 'loading' ? 'idle' : current)}
-            initialClientId={routeState?.clientId ?? ''}
-            initialProjectId={routeState?.projectId ?? ''}
-          />
-          {state === 'loading' && (
-            <div className="flex items-center gap-2 text-sm text-indigo-600 bg-indigo-50 px-4 py-3 rounded-lg">
-              <span className="animate-spin">●</span>
-              <span>AI가 메모를 분석 중입니다...</span>
+      {/* 데스크톱: 좌측 입력 + 우측 로그 / 모바일: 세로 스택 */}
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
+
+        {/* ── 왼쪽: 메모 입력 / 파싱 결과 ── */}
+        <div className="flex-1 min-w-0 space-y-4">
+          {(state === 'idle' || state === 'loading') && (
+            <>
+              <MemoInput
+                onParsed={handleParsed}
+                onLoading={(loading) => setState(current => loading ? 'loading' : current === 'loading' ? 'idle' : current)}
+                initialClientId={routeState?.clientId ?? ''}
+                initialProjectId={routeState?.projectId ?? ''}
+              />
+              {state === 'loading' && (
+                <div className="flex items-center gap-2 text-sm text-indigo-600 bg-indigo-50 px-4 py-3 rounded-lg">
+                  <span className="animate-spin">●</span>
+                  <span>AI가 메모를 분석 중입니다...</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {state === 'saving' && isAutoSave && (
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-5 py-4">
+              <div className="flex items-center gap-2">
+                <span className="animate-spin text-indigo-500">●</span>
+                <p className="text-indigo-700 text-sm font-medium">자동 저장 중... (신뢰도 높음)</p>
+              </div>
+            </div>
+          )}
+
+          {(state === 'parsed' || (state === 'saving' && !isAutoSave)) && parsed && (
+            <>
+              {saveError && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">저장 실패: {saveError}</div>}
+              {state === 'saving' && <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-3 text-sm text-indigo-700">저장 중입니다...</div>}
+              {parsed.memo_type && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-gray-400">메모 유형</span>
+                  <span className="text-[10px] px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">{parsed.memo_type}</span>
+                  {parsed.confidence !== undefined && (
+                    <span className="text-[10px] text-gray-400">신뢰도 {Math.round(parsed.confidence * 100)}%</span>
+                  )}
+                </div>
+              )}
+              <ParseResultCard
+                result={parsed}
+                rawText={rawText}
+                onChange={setParsed}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                existingClients={contextClients}
+                existingProjects={contextProjects}
+              />
+            </>
+          )}
+
+          {state === 'saved' && (
+            <div className="space-y-3">
+              <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-green-500">✓</span>
+                  <p className="text-green-700 font-medium text-sm">
+                    {isAutoSave ? '자동 저장 완료' : '저장 완료'}
+                  </p>
+                </div>
+                <p className="text-xs text-green-600">거래처 로그, 프로젝트 메모, 캘린더, 할 일에 반영했습니다.</p>
+              </div>
+              {savedContext && (
+                <button
+                  onClick={() => navigate(`/workspace/${savedContext.type}/${savedContext.id}`)}
+                  className="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl px-5 py-4 text-left flex items-center justify-between transition-colors group"
+                >
+                  <div>
+                    <p className="text-[10px] text-indigo-400 mb-0.5">
+                      {savedContext.type === 'client' ? '거래처' : '프로젝트'} 워크스페이스에서 계속하기
+                    </p>
+                    <p className="text-sm font-semibold text-indigo-700">{savedContext.name}</p>
+                  </div>
+                  <span className="text-indigo-400 group-hover:text-indigo-600 transition-colors text-lg">→</span>
+                </button>
+              )}
+              <button
+                onClick={handleReset}
+                className="w-full px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                새 메모 입력
+              </button>
+            </div>
+          )}
+
+          {state === 'rejected' && (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
+              <p className="text-gray-600 mb-4">원본 메모만 보관했습니다.</p>
+              <button onClick={handleReset} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg">새 메모 입력</button>
             </div>
           )}
         </div>
-      )}
 
-      {(state === 'parsed' || state === 'saving') && parsed && (
-        <div className="space-y-4">
-          <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-600 border border-gray-200">
-            <span className="font-medium text-gray-700">원본:</span> {rawText}
-          </div>
-          {saveError && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">저장 실패: {saveError}</div>}
-          {state === 'saving' && <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-3 text-sm text-indigo-700">저장 중입니다...</div>}
-          <ParseResultCard result={parsed} onChange={setParsed} onApprove={handleApprove} onReject={handleReject} />
-        </div>
-      )}
-
-      {state === 'saved' && (
-        <div className="space-y-3">
-          <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-green-500">✓</span>
-              <p className="text-green-700 font-medium text-sm">저장 완료</p>
+        {/* ── 오른쪽: 메모 로그 ── */}
+        <div className="w-full lg:w-72 shrink-0">
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-800">메모 로그</h3>
+              <button onClick={loadLogs} className="text-xs text-indigo-600 hover:underline">새로고침</button>
             </div>
-            <p className="text-xs text-green-600">거래처 로그, 프로젝트 메모, 캘린더, 할 일에 반영했습니다.</p>
-          </div>
-
-          {savedContext && (
-            <button
-              onClick={() => navigate(`/workspace/${savedContext.type}/${savedContext.id}`)}
-              className="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl px-5 py-4 text-left flex items-center justify-between transition-colors group"
-            >
-              <div>
-                <p className="text-[10px] text-indigo-400 mb-0.5">
-                  {savedContext.type === 'client' ? '거래처' : '프로젝트'} 워크스페이스에서 계속하기
-                </p>
-                <p className="text-sm font-semibold text-indigo-700">{savedContext.name}</p>
+            {logs.length === 0 ? (
+              <p className="p-4 text-sm text-gray-400">아직 기록된 메모가 없습니다.</p>
+            ) : (
+              <div className="divide-y divide-gray-100 max-h-[70vh] overflow-y-auto">
+                {logs.map(log => (
+                  <div key={log.id} className="p-3">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-[11px] text-gray-400">{new Date(log.created_at).toLocaleString('ko-KR', { hour12: false })}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full shrink-0 ${log.status === 'approved' ? 'bg-green-50 text-green-600' : log.status === 'rejected' ? 'bg-gray-100 text-gray-500' : 'bg-amber-50 text-amber-600'}`}>
+                        {log.status === 'approved' ? '승인' : log.status === 'rejected' ? '거절' : '대기'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-700 line-clamp-2">{log.raw_text}</p>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {reflectedTabs(log.parsed_result).map(tab => (
+                        <span key={tab} className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full">{tab}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <span className="text-indigo-400 group-hover:text-indigo-600 transition-colors text-lg">→</span>
-            </button>
-          )}
-
-          <button
-            onClick={handleReset}
-            className="w-full px-4 py-2.5 border border-gray-200 text-gray-500 text-sm rounded-xl hover:bg-gray-50 transition-colors"
-          >
-            새 메모 입력
-          </button>
-        </div>
-      )}
-
-      {state === 'rejected' && (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
-          <p className="text-gray-600 mb-4">원본 메모만 보관했습니다.</p>
-          <button onClick={handleReset} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg">새 메모 입력</button>
-        </div>
-      )}
-
-      <div className="mt-8 bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-800">메모 로그</h3>
-          <button onClick={loadLogs} className="text-xs text-indigo-600 hover:underline">새로고침</button>
-        </div>
-        {logs.length === 0 ? (
-          <p className="p-4 text-sm text-gray-400">아직 기록된 메모가 없습니다.</p>
-        ) : (
-          <div className="divide-y divide-gray-100">
-            {logs.map(log => (
-              <div key={log.id} className="p-4">
-                <div className="flex items-center justify-between gap-3 mb-1">
-                  <span className="text-xs text-gray-400">{new Date(log.created_at).toLocaleString('ko-KR', { hour12: false })}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${log.status === 'approved' ? 'bg-green-50 text-green-600' : log.status === 'rejected' ? 'bg-gray-100 text-gray-500' : 'bg-amber-50 text-amber-600'}`}>
-                    {log.status === 'approved' ? '승인' : log.status === 'rejected' ? '거절' : '대기'}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-800 line-clamp-2">{log.raw_text}</p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {reflectedTabs(log.parsed_result).map(tab => <span key={tab} className="text-xs px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full">{tab}</span>)}
-                </div>
-              </div>
-            ))}
+            )}
           </div>
-        )}
+        </div>
+
       </div>
     </div>
   )
