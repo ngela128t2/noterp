@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import GlobalSearchModal from '../search/GlobalSearchModal'
 import MemoFab from '../ui/MemoFab'
-import BottomNav from './BottomNav'
 import Header from './Header'
 import Sidebar from './Sidebar'
 
@@ -16,6 +15,7 @@ const PAGE_TITLE: Record<string, string> = {
   '/contacts': 'N-CRM',
   '/billing': '수금 관리',
   '/deadlines': '마감 기한',
+  '/tax': '세무대리',
   '/settings': '설정',
 }
 
@@ -24,6 +24,10 @@ export default function Layout() {
   const [searchOpen, setSearchOpen] = useState(false)
   const location = useLocation()
   const title = PAGE_TITLE[location.pathname] ?? ''
+
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -39,15 +43,18 @@ export default function Layout() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onSearchOpen={() => setSearchOpen(true)} />
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onSearchOpen={() => setSearchOpen(true)}
+      />
       <div className="flex-1 flex flex-col min-w-0">
-        <Header title={title} />
-        <main className="flex-1 overflow-auto pb-20 lg:pb-0">
+        <Header title={title} onMenuClick={() => setSidebarOpen(v => !v)} />
+        <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
       </div>
       <MemoFab />
-      <BottomNav />
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )

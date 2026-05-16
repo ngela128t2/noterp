@@ -104,22 +104,32 @@ export default function TaxAgencyPage() {
             <h1 className="text-xl font-bold text-gray-900">세무대리</h1>
             <p className="text-xs text-gray-400 mt-0.5">거래처 운영 · 자료수급 · 기장료 · 노무 · 지원금</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => generateTasks.mutate(undefined)}
-              disabled={generateTasks.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg font-medium disabled:opacity-50 transition-colors"
-            >
-              <RefreshCw size={12} className={generateTasks.isPending ? 'animate-spin' : ''} />
-              {generateTasks.isPending ? '생성 중...' : '이번 달 업무 자동 생성'}
-            </button>
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="거래처명 검색"
-              className="w-44 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400"
-            />
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => generateTasks.mutate(undefined)}
+                disabled={generateTasks.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg font-medium disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw size={12} className={generateTasks.isPending ? 'animate-spin' : ''} />
+                {generateTasks.isPending ? '생성 중...' : '이번 달 업무 자동 생성'}
+              </button>
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="거래처명 검색"
+                className="w-44 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            </div>
+            {generateTasks.isError && (
+              <p className="text-[10px] text-red-500">
+                오류: {(generateTasks.error as Error)?.message ?? '생성 실패 — Supabase SQL Editor에서 016 마이그레이션을 실행해주세요'}
+              </p>
+            )}
+            {generateTasks.isSuccess && (
+              <p className="text-[10px] text-emerald-600">✓ 이번 달 업무가 생성됐습니다</p>
+            )}
           </div>
         </div>
 

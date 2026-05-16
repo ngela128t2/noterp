@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
+import { Menu } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
 interface Props {
   title: string
+  onMenuClick?: () => void
 }
 
-export default function Header({ title }: Props) {
+export default function Header({ title, onMenuClick }: Props) {
   const [userEmail, setUserEmail] = useState<string | null>(null)
 
   useEffect(() => {
@@ -16,6 +18,13 @@ export default function Header({ title }: Props) {
 
   return (
     <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 lg:sticky lg:top-0 z-30">
+      {/* 모바일 햄버거 */}
+      {onMenuClick && (
+        <button onClick={onMenuClick} className="lg:hidden p-1 -ml-1 text-gray-500 hover:text-gray-700">
+          <Menu size={20} />
+        </button>
+      )}
+
       <span className="text-xl font-bold text-indigo-600 lg:text-gray-300">Noterp</span>
       <span className="text-sm text-gray-400">/ {title}</span>
 
@@ -27,10 +36,10 @@ export default function Header({ title }: Props) {
         Note everything, Not just ERP.
       </span>
 
-      {/* 모바일: 사용자 ID + 로그아웃 버튼 */}
+      {/* 모바일: 사용자 ID + 로그아웃 */}
       <div className="ml-auto lg:hidden flex items-center gap-2">
         {userEmail && (
-          <span className="text-[10px] text-gray-400 max-w-[120px] truncate">{userEmail}</span>
+          <span className="text-[10px] text-gray-400 max-w-[110px] truncate">{userEmail}</span>
         )}
         <button
           onClick={() => supabase.auth.signOut()}

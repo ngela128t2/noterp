@@ -11,7 +11,7 @@ export default function MemoFab() {
       onClick={() => navigate('/memo')}
       title="메모 입력"
       aria-label="메모 입력"
-      className="fixed bottom-20 right-5 lg:bottom-6 lg:right-6 z-40 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center"
+      className="fixed bottom-6 right-5 lg:right-6 z-40 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center"
     >
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
