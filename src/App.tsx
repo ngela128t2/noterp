@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Session } from '@supabase/supabase-js'
@@ -20,18 +20,7 @@ import TaxClientPage from './pages/TaxClientPage'
 import TaxIntakePage from './pages/TaxIntakePage'
 import TaxIntakeNewPage from './pages/TaxIntakeNewPage'
 import TaxIntakeDetailPage from './pages/TaxIntakeDetailPage'
-
-// FullCalendar lazy load — 배포 후 청크 hash 변경 시 자동 리로드
-const CalendarPage = lazy(() =>
-  import('./pages/CalendarPage').catch(() => {
-    // chunk 파일 URL이 바뀐 경우(새 배포) 한 번만 새로고침
-    if (!sessionStorage.getItem('cal_reloaded')) {
-      sessionStorage.setItem('cal_reloaded', '1')
-      window.location.reload()
-    }
-    return { default: () => null as any }
-  })
-)
+import CalendarPage from './pages/CalendarPage'
 
 // #6: staleTime 5분 — 포커스마다 refetch 방지
 const queryClient = new QueryClient({
@@ -89,7 +78,7 @@ export default function App() {
             <Route path="memo" element={<MemoPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
-            <Route path="calendar" element={<Suspense fallback={<div className="flex-1 flex items-center justify-center text-sm text-gray-400">캘린더 로딩 중...</div>}><CalendarPage /></Suspense>} />
+            <Route path="calendar" element={<CalendarPage />} />
             <Route path="todos" element={<TodosPage />} />
             <Route path="contacts" element={<ContactsPage />} />
             <Route path="billing" element={<BillingPage />} />
