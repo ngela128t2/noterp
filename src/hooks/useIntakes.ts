@@ -126,6 +126,17 @@ export function useApproveIntake() {
   return useMutation({
     mutationFn: async (intake: TaxIntake) => {
       const { data: { user } } = await supabase.auth.getUser()
+      // 상담 메모 + 리스크 포인트를 거래처 memo에 통합
+      const memoParts: string[] = []
+      if (intake.notes?.trim()) memoParts.push(intake.notes.trim())
+      if (intake.risk_points.length > 0) {
+        memoParts.push('[리스크 포인트]\n' + intake.risk_points.map(r => `• ${r}`).join('\n'))
+      }
+      if (intake.bank_info?.trim()) {
+        memoParts.push('[출금 계좌] ' + intake.bank_info.trim())
+      }
+      const clientMemo = memoParts.length > 0 ? memoParts.join('\n\n') : null
+
       const { data: client, error: clientError } = await supabase
         .from('clients')
         .insert({
@@ -140,7 +151,7 @@ export function useApproveIntake() {
           tax_type: intake.tax_type ?? null,
           service_category: '세무대리',
           service_detail: intake.service_detail ?? null,
-          memo: intake.notes ?? null,
+          memo: clientMemo,
           needs_review: true,
           source: 'intake',
         })

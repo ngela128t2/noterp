@@ -45,8 +45,8 @@ export default function GlobalSearchModal({ open, onClose }: Props) {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-[100] pt-16 px-4">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-[100] pt-16 px-4" onClick={onClose}>
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* 검색 입력 */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
           <span className="text-gray-400 text-lg">🔍</span>
