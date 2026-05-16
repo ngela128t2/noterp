@@ -18,6 +18,7 @@ import WorkspacePage from './pages/WorkspacePage'
 import TaxAgencyPage from './pages/TaxAgencyPage'
 import TaxClientPage from './pages/TaxClientPage'
 import TaxIntakePage from './pages/TaxIntakePage'
+import TaxIntakeNewPage from './pages/TaxIntakeNewPage'
 import TaxIntakeDetailPage from './pages/TaxIntakeDetailPage'
 
 // FullCalendar는 무거우므로 lazy load
@@ -87,6 +88,7 @@ export default function App() {
             <Route path="workspace/:type/:id" element={<WorkspacePage />} />
             <Route path="tax" element={<TaxAgencyPage />} />
             <Route path="tax/intake" element={<TaxIntakePage />} />
+            <Route path="tax/intake/new" element={<TaxIntakeNewPage />} />
             <Route path="tax/intake/:id" element={<TaxIntakeDetailPage />} />
             <Route path="tax/client/:id" element={<TaxClientPage />} />
           </Route>

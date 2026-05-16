@@ -97,6 +97,70 @@ export async function matchClients(names: string[]): Promise<ClientMatchResult[]
   return Promise.all(names.map(name => matchClient(name)))
 }
 
+// ── 세무대리 신규 접수 종합 분석 ──────────────────────────────────────
+
+export type ExtractedIntakeInfo = {
+  client_name: string | null
+  business_number: string | null
+  representative: string | null
+  phone: string | null
+  email: string | null
+  address: string | null
+  entity_type: string | null    // 법인/개인사업자/개인
+  tax_type: string | null       // 일반과세/간이과세/면세
+  service_detail: string | null // 기장/조정/신고대리
+  bookkeeping_fee: number | null
+  withdrawal_day: number | null
+  bank_info: string | null
+  notes: string | null
+  risk_points: string[]
+}
+
+export async function analyzeIntakeDocuments(
+  files: Array<{ label: string; base64: string; mimeType: string }>
+): Promise<ExtractedIntakeInfo> {
+  const parts: Array<{ text?: string; inlineData?: { data: string; mimeType: string } }> = []
+
+  for (const f of files) {
+    parts.push({ text: `[${f.label}]` })
+    parts.push({ inlineData: { data: f.base64, mimeType: f.mimeType } })
+  }
+
+  parts.push({
+    text: `위 문서들(세무대리 신청서, 사업자등록증, 신분증, 통장, 상담메모 등)을 종합 분석하여 다음 JSON을 반환하세요.
+코드블록 없이 순수 JSON만 반환.
+
+{
+  "client_name": "상호 또는 사업자명",
+  "business_number": "사업자등록번호 (000-00-00000, 없으면 null)",
+  "representative": "대표자명",
+  "phone": "연락처",
+  "email": "이메일 또는 null",
+  "address": "사업장 주소 또는 null",
+  "entity_type": "법인 또는 개인사업자 또는 개인",
+  "tax_type": "일반과세 또는 간이과세 또는 면세",
+  "service_detail": "기장 또는 조정 또는 신고대리",
+  "bookkeeping_fee": 기장료숫자(원, 없으면 null),
+  "withdrawal_day": 출금일숫자(1~31, 없으면 null),
+  "bank_info": "출금계좌 또는 null",
+  "notes": "상담 내용, 특이사항 요약 또는 null",
+  "risk_points": ["리스크 항목 배열, 없으면 빈 배열"]
+}
+
+리스크 항목 예시: 차명 인건비, 가공경비, 체납 이력, 현금매출 누락 등 의심 징후`
+  })
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [{ role: 'user', parts }],
+  })
+
+  const raw = response.text ?? ''
+  const jsonMatch = raw.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('분석 결과 파싱 실패: ' + raw.slice(0, 200))
+  return JSON.parse(jsonMatch[0]) as ExtractedIntakeInfo
+}
+
 // ── 사업자등록증 OCR 에이전트 ─────────────────────────────────────────
 
 export type ExtractedClientInfo = Pick<

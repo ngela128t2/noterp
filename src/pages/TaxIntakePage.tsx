@@ -15,7 +15,7 @@ export default function TaxIntakePage() {
   const { data: intakes = [] } = useIntakes()
   const create = useCreateIntake()
   const [statusFilter, setStatusFilter] = useState<TaxIntake['status'] | 'all'>('all')
-  const [creating, setCreating] = useState(false)
+  const [creating, setCreating] = useState(false)  // 직접 입력용 fallback
   const [newName, setNewName] = useState('')
   const [newSource, setNewSource] = useState('다울')
 
@@ -43,13 +43,22 @@ export default function TaxIntakePage() {
             <h1 className="text-xl font-bold text-gray-900">신규 접수함</h1>
             <p className="text-xs text-gray-400 mt-0.5">신규 세무대리 거래처 온보딩 · 자료 수집 · AI 정보 추출 · 거래처 생성</p>
           </div>
-          <button
-            onClick={() => setCreating(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            <Plus size={15} />
-            신규 접수
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/tax/intake/new')}
+              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              <Plus size={15} />
+              신규 접수 (파일 업로드)
+            </button>
+            <button
+              onClick={() => setCreating(true)}
+              className="text-xs text-gray-400 hover:text-gray-600 px-2 py-2"
+              title="파일 없이 직접 입력"
+            >
+              직접 입력
+            </button>
+          </div>
         </div>
 
         {/* 상태 필터 */}
