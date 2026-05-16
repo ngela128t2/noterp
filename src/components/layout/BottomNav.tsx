@@ -4,17 +4,17 @@ import { useReviewBadges } from '../../hooks/useReviewBadges'
 
 const mainItems = [
   { to: '/',         short: '홈' },
-  { to: '/memo',     short: '메모' },
   { to: '/clients',  short: '거래처', badgeKey: 'clients'  as const },
   { to: '/projects', short: '프로젝트', badgeKey: 'projects' as const },
   { to: '/contacts', short: 'N-CRM',  badgeKey: 'contacts' as const },
+  { to: '/tax',      short: '세무대리' },
 ]
 
 const moreItems = [
-  { to: '/tax',       label: '세무대리', emoji: '🧮' },
   { to: '/calendar',  label: '일정',     emoji: '📅' },
   { to: '/todos',     label: 'Follow-up', emoji: '✓' },
   { to: '/deadlines', label: '마감 기한', emoji: '⏰' },
+  { to: '/memo',      label: '메모 입력', emoji: '✏️' },
 ]
 
 export default function BottomNav() {

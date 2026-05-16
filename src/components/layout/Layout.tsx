@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import GlobalSearchModal from '../search/GlobalSearchModal'
 import MemoFab from '../ui/MemoFab'
+import BottomNav from './BottomNav'
 import Header from './Header'
 import Sidebar from './Sidebar'
 
@@ -50,11 +51,12 @@ export default function Layout() {
       />
       <div className="flex-1 flex flex-col min-w-0">
         <Header title={title} onMenuClick={() => setSidebarOpen(v => !v)} />
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto pb-20 lg:pb-0">
           <Outlet />
         </main>
       </div>
       <MemoFab />
+      <BottomNav />
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
