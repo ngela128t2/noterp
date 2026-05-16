@@ -148,6 +148,25 @@ export function useApproveIntake() {
         .single()
       if (clientError) throw clientError
 
+      // 기장료가 있으면 billing_contracts에 자동 등록
+      if (intake.bookkeeping_fee && intake.bookkeeping_fee > 0) {
+        const today = new Date().toISOString().split('T')[0]
+        const { error: billingError } = await supabase
+          .from('billing_contracts')
+          .insert({
+            user_id: user!.id,
+            client_id: client.id,
+            service_category: intake.service_detail ?? '세무대리',
+            amount: intake.bookkeeping_fee,
+            billing_cycle: 'monthly',
+            billing_day: intake.withdrawal_day ?? null,
+            start_date: today,
+            end_date: null,
+            memo: intake.bank_info ?? null,
+          })
+        if (billingError) throw billingError
+      }
+
       const { error: updateError } = await supabase
         .from('tax_intakes')
         .update({ status: 'approved', client_id: client.id, updated_at: new Date().toISOString() })
@@ -160,6 +179,7 @@ export function useApproveIntake() {
       qc.invalidateQueries({ queryKey: ['tax_intake', intake.id] })
       qc.invalidateQueries({ queryKey: ['tax_intakes'] })
       qc.invalidateQueries({ queryKey: ['clients'] })
+      qc.invalidateQueries({ queryKey: ['billing_contracts'] })
     },
   })
 }
