@@ -49,10 +49,10 @@ export default function TaxClientPage() {
     <div className="flex flex-col h-full">
       {/* 헤더 */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
-        <div className="flex items-center gap-2 mb-1 text-xs text-gray-400">
-          <button onClick={() => navigate('/tax')} className="hover:text-emerald-600 transition-colors">세무대리</button>
-          <span>/</span>
-          <span className="text-gray-600">{client.name}</span>
+        <div className="flex items-center gap-2 mb-1 text-xs">
+          <button onClick={() => navigate('/tax')} className="text-emerald-600 hover:underline font-medium transition-colors">← 세무대리</button>
+          <span className="text-gray-300">/</span>
+          <span className="text-gray-500">{client.name}</span>
         </div>
         <div className="flex items-start justify-between gap-3">
           <div>
