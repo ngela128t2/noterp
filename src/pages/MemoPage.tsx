@@ -323,7 +323,13 @@ export default function MemoPage() {
           if (error) throw error
           existing.memo = nextMemo
           touchedProjectIds.add(existing.id)
-          await ensureMilestones(existing.id, project, memoTitle, primaryDueDate, milestoneCache)
+          // AI가 명시한 마일스톤이 있을 때만 생성 (메모 텍스트를 마일스톤으로 만들지 않음)
+          const hasExplicitMilestone =
+            (project.milestones?.filter(m => m.title.trim()).length ?? 0) > 0 ||
+            (project.milestone != null && project.milestone.trim().length > 0)
+          if (hasExplicitMilestone) {
+            await ensureMilestones(existing.id, project, memoTitle, primaryDueDate, milestoneCache)
+          }
           continue
         }
 
