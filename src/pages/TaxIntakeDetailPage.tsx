@@ -30,6 +30,7 @@ export default function TaxIntakeDetailPage() {
   const [showRiskPresets, setShowRiskPresets] = useState(false)
   const [saved, setSaved] = useState(false)
   const [confirmApprove, setConfirmApprove] = useState(false)
+  const [approveError, setApproveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (intake && !form) setForm(intake)
@@ -51,8 +52,17 @@ export default function TaxIntakeDetailPage() {
   }
 
   const handleApprove = async () => {
-    const clientId = await approve.mutateAsync({ ...intake, ...form } as TaxIntake)
-    navigate(`/tax/client/${clientId}`)
+    setApproveError(null)
+    try {
+      // 저장 먼저 → 최신 form 내용 반영
+      await update.mutateAsync({ id: intake.id, ...form })
+      const updatedIntake = { ...intake, ...form } as TaxIntake
+      const clientId = await approve.mutateAsync(updatedIntake)
+      navigate(`/tax/client/${clientId}`)
+    } catch (e) {
+      setApproveError(e instanceof Error ? e.message : '거래처 생성 실패')
+      setConfirmApprove(false)
+    }
   }
 
   const addRisk = (text: string) => {
@@ -104,6 +114,9 @@ export default function TaxIntakeDetailPage() {
               >
                 거래처 생성 승인
               </button>
+            )}
+            {approveError && (
+              <p className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-lg">{approveError}</p>
             )}
             {confirmApprove && (
               <div className="flex items-center gap-1.5">
