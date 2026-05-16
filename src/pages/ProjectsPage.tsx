@@ -1,5 +1,6 @@
 ﻿import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Search, SlidersHorizontal } from 'lucide-react'
 import ProjectFormModal from '../components/projects/ProjectFormModal'
 import TemplatePickerModal from '../components/projects/TemplatePickerModal'
 import { useClients } from '../hooks/useClients'
@@ -76,6 +77,8 @@ export default function ProjectsPage() {
   const [clientFilter, setClientFilter] = useState('')
   const [startFilter, setStartFilter] = useState('')
   const [endFilter, setEndFilter] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
+  const [showDateFilter, setShowDateFilter] = useState(false)
 
   const filteredProjects = useMemo(() => {
     const keyword = search.trim().toLowerCase()
@@ -162,64 +165,89 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="p-4 lg:p-6">
-      <div className="flex items-center justify-between gap-3 mb-5">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">프로젝트</h2>
-          <p className="text-sm text-gray-400 mt-1">거래처와 기간 기준으로 프로젝트를 빠르게 찾아볼 수 있습니다.</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <div className="p-3 lg:p-6">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h2 className="text-lg lg:text-2xl font-bold text-gray-900">프로젝트</h2>
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setShowTemplatePicker(true)}
-            className="px-3 py-2 border border-indigo-300 text-indigo-600 hover:bg-indigo-50 text-sm font-medium rounded-lg whitespace-nowrap"
+            className="px-2.5 py-1.5 border border-indigo-300 text-indigo-600 hover:bg-indigo-50 text-xs font-medium rounded-lg whitespace-nowrap"
           >
-            템플릿으로 시작
+            <span className="hidden sm:inline">템플릿으로 시작</span>
+            <span className="sm:hidden">템플릿</span>
           </button>
           <button
             onClick={() => { clearTemplateState(); setModal('create') }}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm whitespace-nowrap"
+            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg whitespace-nowrap"
           >
-            + 직접 추가
+            + 추가
           </button>
         </div>
       </div>
 
-      <section className="bg-white rounded-xl border border-gray-200 p-4 mb-4 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          <input
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder="프로젝트명, 메모 검색"
-            className="md:col-span-2 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
-          />
+      {/* 필터 — 모바일: 돋보기+필터 토글 / 데스크톱: 풀 그리드 */}
+      <section className="bg-white rounded-xl border border-gray-200 px-3 py-2.5 mb-3 shadow-sm">
+        {/* 모바일 필터 행 */}
+        <div className="flex items-center gap-2 lg:hidden">
+          <button
+            onClick={() => setShowSearch(v => !v)}
+            className={`p-1.5 rounded-lg transition-colors ${showSearch ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50'}`}
+          >
+            <Search size={16} />
+          </button>
           <select
             value={clientFilter}
-            onChange={event => setClientFilter(event.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+            onChange={e => setClientFilter(e.target.value)}
+            className="flex-1 min-w-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
           >
             <option value="">전체 거래처</option>
-            {clients.map(client => (
-              <option key={client.id} value={client.id}>{client.name}</option>
-            ))}
+            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          <button
+            onClick={() => setShowDateFilter(v => !v)}
+            className={`p-1.5 rounded-lg transition-colors ${showDateFilter ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-50'}`}
+          >
+            <SlidersHorizontal size={16} />
+          </button>
+          {(search || clientFilter || startFilter || endFilter) && (
+            <button onClick={resetFilters} className="text-xs text-gray-400 hover:text-gray-600 px-1">✕</button>
+          )}
+        </div>
+        {/* 모바일: 검색창 토글 */}
+        {showSearch && (
           <input
-            type="date"
-            value={startFilter}
-            onChange={event => setStartFilter(event.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
-            aria-label="조회 시작일"
+            autoFocus
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="프로젝트명, 메모 검색"
+            className="lg:hidden mt-2 w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
           />
+        )}
+        {/* 모바일: 기간 필터 토글 */}
+        {showDateFilter && (
+          <div className="lg:hidden mt-2 flex gap-2">
+            <input type="date" value={startFilter} onChange={e => setStartFilter(e.target.value)}
+              className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+            <input type="date" value={endFilter} onChange={e => setEndFilter(e.target.value)}
+              className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+          </div>
+        )}
+        {/* 데스크톱: 풀 필터 */}
+        <div className="hidden lg:grid grid-cols-5 gap-3">
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="프로젝트명, 메모 검색"
+            className="col-span-2 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400" />
+          <select value={clientFilter} onChange={e => setClientFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400">
+            <option value="">전체 거래처</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <input type="date" value={startFilter} onChange={e => setStartFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400" />
           <div className="flex gap-2">
-            <input
-              type="date"
-              value={endFilter}
-              onChange={event => setEndFilter(event.target.value)}
-              className="min-w-0 flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
-              aria-label="조회 종료일"
-            />
-            <button onClick={resetFilters} className="px-3 py-2 text-sm text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-lg whitespace-nowrap">
-              초기화
-            </button>
+            <input type="date" value={endFilter} onChange={e => setEndFilter(e.target.value)}
+              className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400" />
+            <button onClick={resetFilters} className="px-3 py-2 text-sm text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-lg">초기화</button>
           </div>
         </div>
       </section>
@@ -388,25 +416,27 @@ function ProjectRow({
           {project.memo && <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">메모</span>}
         </div>
 
-        {/* 액션 버튼 행 — 별도 행 */}
-        <div className="flex items-center gap-1 pt-1 border-t border-gray-50" onClick={e => e.stopPropagation()}>
+        {/* 액션 버튼 행 */}
+        <div className="flex items-center gap-0.5 pt-1 border-t border-gray-50" onClick={e => e.stopPropagation()}>
           <Link
             to={`/workspace/project/${project.id}`}
-            className="px-3 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg font-medium"
+            className="px-2 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 rounded-lg font-medium whitespace-nowrap"
           >
-            워크스페이스
+            <span className="hidden sm:inline">워크스페이스</span>
+            <span className="sm:hidden">↗ 워크</span>
           </Link>
-          <button onClick={onEdit} className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg">수정</button>
+          <button onClick={onEdit} className="px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg">수정</button>
           <button
             onClick={handleRollover}
             disabled={rollingOver}
-            className="px-3 py-1.5 text-xs text-amber-500 hover:bg-amber-50 rounded-lg disabled:opacity-40"
+            className="px-2 py-1.5 text-xs text-amber-500 hover:bg-amber-50 rounded-lg disabled:opacity-40 whitespace-nowrap"
             title="1년 후 날짜로 동일 프로젝트 복사"
           >
-            {rollingOver ? '복사 중...' : '↻ 새해 복사'}
+            <span className="hidden sm:inline">{rollingOver ? '복사 중...' : '↻ 새해 복사'}</span>
+            <span className="sm:hidden">↻</span>
           </button>
-          <button onClick={onDelete} className="px-3 py-1.5 text-xs text-red-400 hover:bg-red-50 rounded-lg">삭제</button>
-          <span className="ml-auto text-xs text-gray-300">{expanded ? '접기' : '열기'}</span>
+          <button onClick={onDelete} className="px-2 py-1.5 text-xs text-red-400 hover:bg-red-50 rounded-lg">삭제</button>
+          <span className="ml-auto text-[10px] text-gray-300">{expanded ? '접기 ▲' : '열기 ▼'}</span>
         </div>
       </div>
 

@@ -150,7 +150,7 @@ export default function DeadlinesPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">마감 기한</h2>
+          <h2 className="text-lg lg:text-2xl font-bold text-gray-900">마감 기한</h2>
           <p className="text-sm text-gray-400 mt-1">세무신고·감사보고서 등 법정 마감 기한을 관리합니다.</p>
         </div>
         <div className="flex gap-2">

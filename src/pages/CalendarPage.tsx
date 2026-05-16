@@ -125,7 +125,7 @@ export default function CalendarPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">캘린더</h2>
+        <h2 className="text-lg lg:text-2xl font-bold text-gray-900">캘린더</h2>
         <button
           onClick={() => openCreate()}
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg"

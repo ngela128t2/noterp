@@ -87,7 +87,7 @@ export default function TodosPage() {
       {/* 헤더 */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Follow-up</h2>
+          <h2 className="text-lg lg:text-2xl font-bold text-gray-900">Follow-up</h2>
           <p className="text-sm text-gray-400 mt-0.5">흐름이 멈춘 업무를 놓치지 않습니다.</p>
         </div>
         <button

@@ -136,7 +136,7 @@ export default function BillingPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">수금 관리</h2>
+          <h2 className="text-lg lg:text-2xl font-bold text-gray-900">수금 관리</h2>
           <p className="text-sm text-gray-400 mt-1">용역 계약 및 청구·수금 내역을 관리합니다.</p>
         </div>
         <div className="flex gap-2">

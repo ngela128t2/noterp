@@ -322,7 +322,7 @@ export default function ContactsPage() {
     <div className="p-6" onPaste={handlePaste}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">N-CRM</h2>
+          <h2 className="text-lg lg:text-2xl font-bold text-gray-900">N-CRM</h2>
           <p className="text-xs text-gray-400 mt-1">명함을 찍거나 이미지를 붙여 넣고, 거래처와 프로젝트별로 사람을 관리합니다.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">

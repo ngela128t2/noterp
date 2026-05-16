@@ -104,7 +104,7 @@ export default function ClientsPage() {
     <div className="flex h-full" onPaste={handlePaste}>
       <div className="flex-1 min-w-0 p-6 overflow-auto">
         <div className="flex items-center justify-between mb-5 gap-3">
-          <h2 className="text-2xl font-bold text-gray-900">거래처 관리</h2>
+          <h2 className="text-lg lg:text-2xl font-bold text-gray-900">거래처 관리</h2>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400 hidden sm:block">사업자등록증 업로드 또는 이미지 붙여넣기</span>
             <button
