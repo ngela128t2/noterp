@@ -36,8 +36,26 @@ function cleanMemoTitle(rawText: string) {
     .replace(/@\[[^\]]+\]/g, '')
     .replace(/@[^\s]+/g, '')
     .replace(/[!！](높음|보통|낮음|긴급|중요|high|medium|low)/gi, '')
-    .replace(/^\*[ \t]+/gm, '') // * 일정항목 마커 제거
+    .replace(/^\*[ \t]+/gm, '')
     .trim() || rawText.trim()
+}
+
+// 날짜·시간·요일만으로 된 제목인지 검사 (프로젝트·마일스톤 제목 차단)
+const DATE_TIME_ONLY_RE = /^[\d\s\/\.\-~·년월일요(월화수목금토일)전오후시분초:]+$/
+function isDateOnlyTitle(title: string): boolean {
+  const t = title.trim()
+  if (!t || t.length <= 2) return true
+  // 한글 단어가 하나도 없고 날짜/숫자/시간 문자만 있는 경우
+  if (DATE_TIME_ONLY_RE.test(t)) return true
+  // "17일", "5/17", "오전 9시" 패턴 — 날짜/시간 제거 후 의미있는 단어가 없는 경우
+  const stripped = t
+    .replace(/\d{1,4}[\/\-\.]\d{1,2}([\/\-\.]\d{1,4})?/g, '')
+    .replace(/\d{1,2}월\s*\d{1,2}일?/g, '')
+    .replace(/\d{1,2}일/g, '')
+    .replace(/(오전|오후)?\s*\d{1,2}시\s*\d{0,2}분?/g, '')
+    .replace(/(월|화|수|목|금|토|일)요일/g, '')
+    .replace(/\s+/g, ' ').trim()
+  return stripped.length <= 1
 }
 
 function parseScheduleItemTime(item: string): { title: string; time: string | null } {
@@ -84,7 +102,7 @@ async function writeActivityLog(input: {
 
 async function ensureMilestone(projectId: string, title: string, dueDate: string | null, cache: Map<string, MilestoneRow[]>) {
   const cleanTitle = title.trim()
-  if (!cleanTitle) return
+  if (!cleanTitle || isDateOnlyTitle(cleanTitle)) return  // 날짜형 제목 차단
 
   let rows = cache.get(projectId)
   if (!rows) {
@@ -333,6 +351,7 @@ export default function MemoPage() {
         }
 
         if (!shortcuts.projects.some(shortcut => normalizeMemoName(shortcut) === key)) continue
+        if (isDateOnlyTitle(name)) continue  // 날짜형 이름 프로젝트 생성 차단
 
         const { data, error } = await supabase
           .from('projects')
