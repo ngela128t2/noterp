@@ -413,8 +413,21 @@ export default function ContactsPage() {
               </div>
 
               <div className="mt-3 space-y-1">
-                {contact.phone && <p className="text-xs text-gray-500 truncate">전화 {contact.phone}</p>}
-                {contact.email && <p className="text-xs text-gray-500 truncate">메일 {contact.email}</p>}
+                {contact.phone && (
+                  <div className="flex items-center gap-2">
+                    <a href={`tel:${contact.phone}`} className="flex items-center gap-1 text-xs text-gray-500 hover:text-indigo-600 transition-colors truncate flex-1">
+                      <span>📞</span>{contact.phone}
+                    </a>
+                    <a href={`sms:${contact.phone}`} className="text-xs text-gray-400 hover:text-emerald-600 transition-colors shrink-0 px-1.5 py-0.5 rounded bg-gray-100 hover:bg-emerald-50" title="문자 보내기">
+                      💬
+                    </a>
+                  </div>
+                )}
+                {contact.email && (
+                  <a href={`mailto:${contact.email}`} className="flex items-center gap-1 text-xs text-gray-500 hover:text-indigo-600 transition-colors truncate">
+                    <span>✉</span>{contact.email}
+                  </a>
+                )}
                 {contact.clients && <p className="text-xs text-indigo-500 truncate">거래처 {contact.clients.name}</p>}
                 {contact.projects && <p className="text-xs text-purple-500 truncate">프로젝트 {contact.projects.name}</p>}
               </div>

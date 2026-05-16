@@ -2,16 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import AISummaryPanel from '../components/workspace/AISummaryPanel'
 import TimelineItemRow from '../components/workspace/TimelineItem'
+import ActivityFeedPanel from '../components/workspace/ActivityFeedPanel'
 import { useClientTimeline, useProjectTimeline } from '../hooks/useContextTimeline'
-import { useClients } from '../hooks/useClients'
+import { useClients, useDismissReview } from '../hooks/useClients'
 import { useContacts } from '../hooks/useContacts'
 import { useClientProjects, useProjects } from '../hooks/useProjects'
-import { useClientTodos, useProjectTodos } from '../hooks/useTodos'
-import { useClientUpcomingEvents, useProjectCalendarEvents } from '../hooks/useCalendarEvents'
 import { useWorkspaceStore } from '../store/workspaceStore'
 import type { Client, Project } from '../types'
 
-type Tab = 'timeline' | 'info' | 'contacts' | 'tasks' | 'events'
+type Tab = 'timeline' | 'info' | 'contacts'
 
 const STATUS_LABEL: Record<string, string> = {
   preparing: '준비', in_progress: '진행 중', review: '검토', completed: '완료',
@@ -29,11 +28,11 @@ export default function WorkspacePage() {
 
   const isClient = type === 'client'
   const isProject = type === 'project'
-  const today = new Date().toISOString().split('T')[0]
 
   const { data: clients = [] } = useClients()
   const { data: projects = [] } = useProjects()
   const { data: contacts = [] } = useContacts()
+  const dismissReview = useDismissReview()
 
   const client = isClient ? clients.find(c => c.id === id) : null
   const project = isProject ? projects.find(p => p.id === id) : null
@@ -41,10 +40,6 @@ export default function WorkspacePage() {
 
   // Context-specific data
   const { data: clientProjects = [] } = useClientProjects(isClient ? (id ?? '') : '')
-  const { data: clientTodos = [] } = useClientTodos(isClient ? (id ?? '') : '')
-  const { data: clientEvents = [] } = useClientUpcomingEvents(isClient ? (id ?? '') : '')
-  const { data: projectTodos = [] } = useProjectTodos(isProject ? (id ?? '') : '')
-  const { data: projectEvents = [] } = useProjectCalendarEvents(isProject ? (id ?? '') : '')
 
   // Related client for project workspace
   const projectClient = project?.client_id ? clients.find(c => c.id === project.client_id) : null
@@ -73,14 +68,9 @@ export default function WorkspacePage() {
     return () => setActiveContext(null)
   }, [id, type, name, setActiveContext])
 
-  const todos = isClient ? clientTodos : projectTodos
-  const events = isClient ? clientEvents : projectEvents
-
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'timeline', label: '타임라인', count: timeline.length },
     { key: 'info', label: '정보' },
-    { key: 'tasks', label: '할 일', count: todos.filter(t => !t.completed).length },
-    { key: 'events', label: '일정', count: events.length },
     { key: 'contacts', label: '연결', count: (isClient ? clientProjects.length : 0) + relatedContacts.length },
   ]
 
@@ -126,8 +116,6 @@ export default function WorkspacePage() {
             {isClient && (
               <div className="flex items-center gap-3 text-xs text-gray-500 mt-1 flex-wrap">
                 <span>프로젝트 <strong className="text-gray-700">{clientProjects.length}</strong>건</span>
-                <span>할 일 <strong className="text-gray-700">{clientTodos.filter(t => !t.completed).length}</strong>건</span>
-                <span>일정 <strong className="text-gray-700">{clientEvents.length}</strong>건</span>
                 {timeline.length > 0 && (() => {
                   const lastDate = timeline[0].sortKey.slice(0, 10)
                   const days = Math.floor((Date.now() - new Date(lastDate).getTime()) / 86400000)
@@ -188,17 +176,56 @@ export default function WorkspacePage() {
         {/* 타임라인 */}
         {tab === 'timeline' && (
           <div className="max-w-3xl space-y-4">
-            <AISummaryPanel contextId={id ?? ''} contextName={name} contextType={type ?? 'client'} items={timeline} />
-            {timeline.length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-                <p className="text-gray-400 text-sm">기록된 활동이 없습니다.</p>
-                <button onClick={() => navigate('/memo')} className="mt-3 text-sm text-indigo-600 hover:underline">메모 입력하기</button>
-              </div>
-            ) : (
-              <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50 overflow-hidden">
-                {timeline.map((item, i) => <TimelineItemRow key={i} item={item} />)}
+            {/* 검토 필요 배너 */}
+            {client?.needs_review && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+                <span className="text-amber-500 mt-0.5 shrink-0">⚠️</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-amber-800">AI 자동 생성 항목 검토 필요</p>
+                  <p className="text-xs text-amber-600 mt-0.5">메모 파싱으로 일정·할 일·프로젝트가 자동 생성됐습니다. 아래 타임라인에서 내용을 확인하고 불필요한 항목은 삭제해 주세요.</p>
+                </div>
+                <button
+                  onClick={() => dismissReview.mutate(id!)}
+                  className="shrink-0 text-xs px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 font-medium rounded-lg transition-colors"
+                >
+                  확인 완료
+                </button>
               </div>
             )}
+
+            <AISummaryPanel contextId={id ?? ''} contextName={name} contextType={type ?? 'client'} items={timeline} />
+
+            {/* 진행 중 업무 (미완료 work items) — 임박한 마감 먼저 */}
+            {(() => {
+              const workItems = timeline
+                .filter(t => t.kind === 'work' && !t.item.completed)
+                .sort((a, b) => {
+                  const ad = a.kind === 'work' ? a.item.date : null
+                  const bd = b.kind === 'work' ? b.item.date : null
+                  if (!ad && !bd) return 0
+                  if (!ad) return 1
+                  if (!bd) return -1
+                  return ad.localeCompare(bd)
+                })
+              if (workItems.length === 0) return null
+              return (
+                <WorkItemsSection
+                  items={workItems}
+                  projects={isClient ? clientProjects : []}
+                  onMemo={() => navigate('/memo', {
+                    state: isClient
+                      ? { clientId: id, clientName: name }
+                      : { projectId: id, projectName: name, clientId: project?.client_id ?? null, clientName: projectClient?.name ?? null }
+                  })}
+                />
+              )
+            })()}
+
+            {/* 활동 기록 피드 */}
+            <ActivityFeedPanel
+              clientId={isClient ? (id ?? '') : undefined}
+              projectId={isProject ? (id ?? '') : undefined}
+            />
           </div>
         )}
 
@@ -207,60 +234,6 @@ export default function WorkspacePage() {
           <div className="max-w-2xl">
             {client && <ClientInfoPanel client={client} />}
             {project && <ProjectInfoPanel project={project} projectClient={projectClient} />}
-          </div>
-        )}
-
-        {/* 할 일 */}
-        {tab === 'tasks' && (
-          <div className="max-w-2xl space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-700">할 일 ({todos.length}건)</h3>
-              <button onClick={() => navigate('/todos')} className="text-xs text-indigo-500 hover:underline">전체 보기</button>
-            </div>
-            {todos.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4">할 일이 없습니다.</p>
-            ) : (
-              <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50">
-                {todos.map(t => (
-                  <li key={t.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${t.priority === 'high' ? 'bg-red-500' : t.priority === 'medium' ? 'bg-yellow-500' : 'bg-gray-300'}`} />
-                    <span className={`flex-1 text-sm ${t.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>{t.title}</span>
-                    {t.due_date && (
-                      <span className={`text-xs shrink-0 ${t.due_date < today ? 'text-red-400' : 'text-gray-400'}`}>
-                        {t.due_date.slice(5)}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {/* 일정 */}
-        {tab === 'events' && (
-          <div className="max-w-2xl space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-700">일정 ({events.length}건)</h3>
-              <button onClick={() => navigate('/calendar')} className="text-xs text-indigo-500 hover:underline">캘린더로</button>
-            </div>
-            {events.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4">일정이 없습니다.</p>
-            ) : (
-              <ul className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50">
-                {events.map((e: any) => (
-                  <li key={e.id} className="flex items-center gap-3 px-4 py-3">
-                    <span className="text-xs text-blue-500 font-medium w-20 shrink-0">
-                      {e.date.slice(5)} {e.time?.slice(0, 5) ?? '종일'}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-800 truncate">{e.title}</p>
-                      {e.location && <p className="text-xs text-gray-400">📍 {e.location}</p>}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
         )}
 
@@ -325,8 +298,21 @@ export default function WorkspacePage() {
                       </div>
                       {(c.phone || c.email) && (
                         <div className="mt-2 space-y-0.5">
-                          {c.phone && <p className="text-xs text-gray-500">{c.phone}</p>}
-                          {c.email && <p className="text-xs text-gray-500">{c.email}</p>}
+                          {c.phone && (
+                            <div className="flex items-center gap-2">
+                              <a href={`tel:${c.phone}`} className="flex items-center gap-1 text-xs text-gray-500 hover:text-indigo-600 transition-colors flex-1">
+                                <span>📞</span>{c.phone}
+                              </a>
+                              <a href={`sms:${c.phone}`} className="text-xs text-gray-400 hover:text-emerald-600 transition-colors shrink-0 px-1.5 py-0.5 rounded bg-gray-100 hover:bg-emerald-50" title="문자 보내기">
+                                💬
+                              </a>
+                            </div>
+                          )}
+                          {c.email && (
+                            <a href={`mailto:${c.email}`} className="flex items-center gap-1 text-xs text-gray-500 hover:text-indigo-600 transition-colors">
+                              <span>✉</span>{c.email}
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -404,6 +390,81 @@ function Row({ label, value, mono, highlight }: { label: string; value: string |
     <div className="flex items-start gap-2">
       <span className="text-xs text-gray-400 w-24 shrink-0 pt-0.5">{label}</span>
       <span className={`text-xs flex-1 break-all ${mono ? 'font-mono text-gray-700' : highlight ? 'text-indigo-600 font-medium' : 'text-gray-700'}`}>{value}</span>
+    </div>
+  )
+}
+
+// 미완료 업무 항목 섹션 (프로젝트별 그룹)
+function WorkItemsSection({
+  items,
+  projects,
+  onMemo,
+}: {
+  items: import('../hooks/useContextTimeline').TimelineItem[]
+  projects: Project[]
+  onMemo: () => void
+}) {
+  const projectMap = useMemo(
+    () => new Map(projects.map(p => [p.id, p])),
+    [projects],
+  )
+
+  // 프로젝트별 그룹핑
+  const grouped = useMemo(() => {
+    const groups = new Map<string | null, import('../hooks/useContextTimeline').TimelineItem[]>()
+    for (const t of items) {
+      if (t.kind !== 'work') continue
+      const pid = t.item.projectId ?? null
+      if (!groups.has(pid)) groups.set(pid, [])
+      groups.get(pid)!.push(t)
+    }
+    return groups
+  }, [items])
+
+  // 프로젝트 순서: 매핑된 프로젝트 먼저, null(거래처 직접 연결) 마지막
+  const sortedKeys = useMemo(() => {
+    const keys = [...grouped.keys()]
+    return keys.sort((a, b) => {
+      if (a === null) return 1
+      if (b === null) return -1
+      return 0
+    })
+  }, [grouped])
+
+  if (sortedKeys.length === 0) return null
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">진행 중 업무</p>
+        <button onClick={onMemo} className="text-xs text-indigo-500 hover:underline">+ 메모</button>
+      </div>
+
+      {sortedKeys.map(pid => {
+        const groupItems = grouped.get(pid)!
+        const proj = pid ? projectMap.get(pid) : null
+        const groupLabel = proj?.name ?? (pid ? pid : '거래처 직접 연결')
+
+        return (
+          <div key={pid ?? '__direct'}>
+            {projects.length > 0 && (
+              <div className="flex items-center gap-2 mb-1.5 px-1">
+                <span className="text-xs font-medium text-gray-700 truncate">{groupLabel}</span>
+                {proj?.status && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLOR[proj.status]}`}>
+                    {STATUS_LABEL[proj.status]}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-50 overflow-hidden">
+              {groupItems.map((item, i) => (
+                <TimelineItemRow key={i} item={item} />
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -26,9 +26,14 @@ function writeCache(key: string, text: string) {
 
 function serialize(item: TimelineItem): string {
   if (item.kind === 'log') return `[활동] ${item.data.action} "${item.data.entity_name ?? ''}" (${item.data.created_at.slice(0, 10)})`
-  if (item.kind === 'event') return `[일정] ${item.data.title} ${item.data.date}${item.data.time ? ' ' + item.data.time.slice(0, 5) : ''}`
-  if (item.kind === 'milestone') return `[마일스톤] ${item.data.completed ? '✓' : '○'} ${item.data.title}${item.data.due_date ? ' (' + item.data.due_date + ')' : ''}`
-  if (item.kind === 'todo') return `[할일] ${item.data.completed ? '✓' : '○'} ${item.data.title}${item.data.due_date ? ' ~' + item.data.due_date : ''}`
+  if (item.kind === 'work') {
+    const w = item.item
+    const status = w.completed ? '✓' : '○'
+    const label = w.source === 'event' ? '일정' : w.source === 'milestone' ? '마일스톤' : '할일'
+    const dateStr = w.date ?? '날짜없음'
+    const timeStr = w.time ? ` ${w.time.slice(0, 5)}` : ''
+    return `[${label}] ${status} ${w.title} (${dateStr}${timeStr})`
+  }
   return ''
 }
 

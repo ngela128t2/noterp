@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { getLocalDate } from '../lib/dateUtils'
 
 export type OpenLoop = {
   id: string
@@ -16,7 +17,7 @@ export function useOpenLoops() {
     queryKey: ['open_loops'],
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0]
+      const today = getLocalDate()
       const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString()
 
       const [todosRes, projectsRes, recentLogsRes] = await Promise.all([

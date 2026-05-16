@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { getLocalDate } from '../lib/dateUtils'
 import type { Todo } from '../types'
 
 export function useClientTodos(clientId: string) {
@@ -74,6 +75,23 @@ export function useToggleTodo() {
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['todos'] }),
+  })
+}
+
+export function useSnoozeTodo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, days = 7 }: { id: string; days?: number }) => {
+      const d = new Date()
+      d.setDate(d.getDate() + days)
+      const { error } = await supabase.from('todos').update({ due_date: getLocalDate(d) }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['todos'] })
+      qc.invalidateQueries({ queryKey: ['open_loops'] })
+      qc.invalidateQueries({ queryKey: ['dashboard_stats'] })
+    },
   })
 }
 

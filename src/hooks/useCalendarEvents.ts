@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { CalendarEvent } from '../types'
+import { getLocalDate } from '../lib/dateUtils'
 
 export function useProjectCalendarEvents(projectId: string) {
   return useQuery({
@@ -22,7 +23,7 @@ export function useClientUpcomingEvents(clientId: string) {
   return useQuery({
     queryKey: ['calendar_events', 'client', clientId],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0]
+      const today = getLocalDate()
       const { data, error } = await supabase
         .from('calendar_events')
         .select('*, projects(name)')
@@ -71,7 +72,7 @@ export function useCalendarEvents() {
 export function useCreateCalendarEvent() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (input: Omit<CalendarEvent, 'id' | 'created_at'>) => {
+    mutationFn: async (input: Omit<CalendarEvent, 'id' | 'created_at' | 'completed' | 'completed_at'>) => {
       const { data: { user } } = await supabase.auth.getUser()
       const { data, error } = await supabase
         .from('calendar_events')
@@ -92,6 +93,23 @@ export function useUpdateCalendarEvent() {
       const { data, error } = await supabase
         .from('calendar_events')
         .update(input)
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data as CalendarEvent
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['calendar_events'] }),
+  })
+}
+
+export function useCompleteCalendarEvent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .update({ completed: true, completed_at: new Date().toISOString() })
         .eq('id', id)
         .select()
         .single()

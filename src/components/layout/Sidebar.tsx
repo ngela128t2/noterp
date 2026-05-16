@@ -26,7 +26,6 @@ const navItems = [
   { to: '/todos',     Icon: RefreshCw,    label: 'Follow-up' },
   { to: '/deadlines', Icon: Clock,        label: '마감 기한' },
   { to: '/contacts',  Icon: Users,        label: 'N-CRM',    badgeKey: 'contacts' as const },
-  { to: '/tax',       Icon: Calculator,   label: '세무대리' },
 ]
 
 interface Props {
@@ -126,6 +125,25 @@ export default function Sidebar({ open, onClose, onSearchOpen }: Props) {
 
         {/* 하단 고정 */}
         <div className="px-3 py-4 border-t border-gray-100 w-52 shrink-0 space-y-0.5">
+          <NavLink
+            to="/tax"
+            onClick={onClose}
+            className={({ isActive }) =>
+              `flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                isActive
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <Calculator size={14} className={isActive ? 'text-white' : 'text-emerald-600'} />
+                <span>세무대리</span>
+              </>
+            )}
+          </NavLink>
+          <div className="my-1.5 border-t border-gray-100" />
           <button
             onClick={() => setCardOpen(true)}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors"

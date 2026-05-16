@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { DeadlineTemplate, DeadlineInstance } from '../types'
+import { getLocalDate, localDateOffset } from '../lib/dateUtils'
 
 type InstanceWithLinks = DeadlineInstance & {
   clients: { name: string } | null
@@ -25,14 +26,14 @@ export function useDeadlineInstances(filters?: { completed?: boolean; upcomingDa
   return useQuery({
     queryKey: ['deadline_instances', filters],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0]
+      const today = getLocalDate()
       let q = supabase
         .from('deadline_instances')
         .select('*, clients(name), deadline_templates(name)')
         .order('due_date')
       if (filters?.completed !== undefined) q = q.eq('completed', filters.completed)
       if (filters?.upcomingDays !== undefined) {
-        const limit = new Date(Date.now() + filters.upcomingDays * 86400000).toISOString().split('T')[0]
+        const limit = localDateOffset(filters.upcomingDays)
         q = q.gte('due_date', today).lte('due_date', limit)
       }
       if (filters?.clientId) q = q.eq('client_id', filters.clientId)
@@ -47,8 +48,8 @@ export function useDeadlineDashboardStats() {
   return useQuery({
     queryKey: ['deadline_dashboard'],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0]
-      const in30 = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]
+      const today = getLocalDate()
+      const in30 = localDateOffset(30)
       const { data, error } = await supabase
         .from('deadline_instances')
         .select('due_date')
@@ -56,7 +57,7 @@ export function useDeadlineDashboardStats() {
         .lte('due_date', in30)
       if (error) return { overdue: 0, thisWeek: 0, upcoming: 0 }
       const rows = data ?? []
-      const week = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+      const week = localDateOffset(7)
       return {
         overdue: rows.filter(r => r.due_date < today).length,
         thisWeek: rows.filter(r => r.due_date >= today && r.due_date <= week).length,

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useClients } from '../hooks/useClients'
+import { getLocalDate, localDateOffset } from '../lib/dateUtils'
 import {
   useDeadlineTemplates, useDeadlineInstances,
   useCreateDeadlineTemplate, useUpdateDeadlineTemplate, useDeleteDeadlineTemplate,
@@ -56,7 +57,7 @@ export default function DeadlinesPage() {
   const deleteInstance = useDeleteDeadlineInstance()
   const bulkCreate = useBulkCreateDeadlineInstances()
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDate()
 
   const filteredInstances = useMemo(() => {
     if (!selectedTemplate) return instances
@@ -64,8 +65,8 @@ export default function DeadlinesPage() {
   }, [instances, selectedTemplate])
 
   const grouped = useMemo(() => {
-    const week = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
-    const month = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]
+    const week = localDateOffset(7)
+    const month = localDateOffset(30)
     const overdue = filteredInstances.filter(i => !i.completed && i.due_date < today)
     const thisWeek = filteredInstances.filter(i => !i.completed && i.due_date >= today && i.due_date <= week)
     const thisMonth = filteredInstances.filter(i => !i.completed && i.due_date > week && i.due_date <= month)

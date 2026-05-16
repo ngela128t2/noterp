@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, Building2, CheckCircle2, RefreshCw, Users, Wallet } from 'lucide-react'
+import { AlertCircle, Building2, CheckCircle2, ClipboardList, RefreshCw, Users, Wallet } from 'lucide-react'
 import { useClients } from '../hooks/useClients'
 import { useProjects } from '../hooks/useProjects'
 import { useAllTaxTasks, useGenerateTaxTasks } from '../hooks/useTaxTasks'
@@ -104,6 +104,13 @@ export default function TaxAgencyPage() {
             <h1 className="text-xl font-bold text-gray-900">세무대리</h1>
             <p className="text-xs text-gray-400 mt-0.5">거래처 운영 · 자료수급 · 기장료 · 노무 · 지원금</p>
           </div>
+          <button
+            onClick={() => navigate('/tax/intake')}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white border border-gray-200 text-gray-600 hover:border-emerald-300 hover:text-emerald-700 rounded-lg font-medium transition-colors"
+          >
+            <ClipboardList size={12} />
+            신규 접수함
+          </button>
           <div className="flex flex-col items-end gap-1">
             <div className="flex items-center gap-2">
               <button

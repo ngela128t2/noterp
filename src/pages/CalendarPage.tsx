@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getLocalDate, parseLocalDate } from '../lib/dateUtils'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -57,7 +58,7 @@ export default function CalendarPage() {
   }
 
   const handleNavLinkDayClick = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    const dateStr = getLocalDate(date)
     setForm({ ...EMPTY, date: dateStr })
     setEditingId(null)
     setModal('create')
@@ -114,7 +115,7 @@ export default function CalendarPage() {
   }
 
   const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr)
+    const d = parseLocalDate(dateStr)
     const days = ['일', '월', '화', '수', '목', '금', '토']
     return `${d.getMonth() + 1}월 ${d.getDate()}일 (${days[d.getDay()]})`
   }

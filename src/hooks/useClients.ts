@@ -67,6 +67,23 @@ export function useTogglePinClient() {
   })
 }
 
+export function useDismissReview() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('clients')
+        .update({ needs_review: false })
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      qc.invalidateQueries({ queryKey: ['review_badges'] })
+    },
+  })
+}
+
 export function useDeleteClient() {
   const qc = useQueryClient()
   return useMutation({

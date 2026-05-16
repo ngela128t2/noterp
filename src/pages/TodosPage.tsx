@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClients } from '../hooks/useClients'
+import { getLocalDate } from '../lib/dateUtils'
 import { useOpenLoops } from '../hooks/useOpenLoops'
 import { useCreateTodo, useDeleteTodo, useTodos, useToggleTodo } from '../hooks/useTodos'
 import type { Todo } from '../types'
@@ -46,7 +47,7 @@ export default function TodosPage() {
     follow_type: 'general',
   })
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDate()
   const filtered = todos.filter(t =>
     filter === 'all' ? true : filter === 'done' ? t.completed : !t.completed
   )

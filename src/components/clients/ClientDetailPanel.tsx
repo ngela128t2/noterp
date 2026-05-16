@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Client } from '../../types'
 import { useClientLogs, formatLog } from '../../hooks/useLogs'
+import { getLocalDate } from '../../lib/dateUtils'
 import { useClientProjects } from '../../hooks/useProjects'
 import { useClientTodos } from '../../hooks/useTodos'
 import { useClientUpcomingEvents } from '../../hooks/useCalendarEvents'
@@ -33,7 +34,7 @@ export default function ClientDetailPanel({ client, onEdit, onDelete, onClose }:
 
   const showCode = client.code && !client.needs_review && client.source !== 'memo'
   const openProjectCount = projects.filter(p => p.status !== 'completed').length
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDate()
 
   return (
     <div className="w-1/2 min-w-[420px] shrink-0 bg-white border-l border-gray-200 flex flex-col overflow-hidden">

@@ -1,4 +1,4 @@
-﻿import { useQuery } from '@tanstack/react-query'
+﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
 export interface ActivityLog {
@@ -8,6 +8,7 @@ export interface ActivityLog {
   entity_id: string | null
   entity_name: string | null
   detail: Record<string, string> | null
+  pinned: boolean
   created_at: string
 }
 
@@ -99,5 +100,16 @@ export function useClientLogs(clientId: string) {
       if (error) throw error
       return data as ActivityLog[]
     },
+  })
+}
+
+export function useToggleActivityPin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, pinned }: { id: string; pinned: boolean }) => {
+      const { error } = await supabase.from('activity_logs').update({ pinned }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['activity_feed'] }),
   })
 }

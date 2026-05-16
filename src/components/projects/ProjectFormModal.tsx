@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Client, Project } from '../../types'
+import { getLocalDate } from '../../lib/dateUtils'
 
 interface MilestoneInput {
   title: string
@@ -8,6 +9,7 @@ interface MilestoneInput {
 
 interface Props {
   initial?: Partial<Project>
+  initialMilestones?: MilestoneInput[]   // 템플릿에서 자동 생성된 마일스톤
   clients: Client[]
   error?: string | null
   onSave: (data: Omit<Project, 'id' | 'created_at'>, milestones: MilestoneInput[]) => void
@@ -20,17 +22,17 @@ const PROJECT_DETAILS: Record<string, string[]> = {
   컨설팅: ['세무컨설팅', '회계컨설팅', '경영컨설팅', '기타'],
   자문: ['세무자문', '회계자문', '기타'],
   한공회: ['품질관리', '감리', '기타'],
-  품질관리: ['사전심리', '모니터링', '감리', '기타'],
+  품질관리: ['사전심리', '행정', '감리', '모니터링', '기타'],
   중회협: ['임원회의', 'TF', '기타'],
   강의: ['사내강의', '외부강의', '기타'],
   기타: ['기타'],
 }
 
 const PROJECT_TYPES = Object.keys(PROJECT_DETAILS)
-const today = new Date().toISOString().split('T')[0]
+const today = getLocalDate()
 const inputClass = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white'
 
-export default function ProjectFormModal({ initial, clients, error, onSave, onClose }: Props) {
+export default function ProjectFormModal({ initial, initialMilestones, clients, error, onSave, onClose }: Props) {
   const [form, setForm] = useState({
     user_id: '',
     name: initial?.name ?? '',
@@ -47,7 +49,11 @@ export default function ProjectFormModal({ initial, clients, error, onSave, onCl
   })
 
   const [milestones, setMilestones] = useState<MilestoneInput[]>(
-    initial ? [] : [{ title: '', due_date: '' }],
+    initialMilestones?.length
+      ? initialMilestones
+      : initial
+      ? []
+      : [{ title: '', due_date: '' }],
   )
 
   const set = (key: keyof typeof form) =>

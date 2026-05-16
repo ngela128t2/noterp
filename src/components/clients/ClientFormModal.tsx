@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Client } from '../../types'
+import { getLocalDate } from '../../lib/dateUtils'
 
 type Tab = '기본' | '용역' | '계좌' | '기타'
 type FormState = Omit<Client, 'id' | 'created_at' | 'user_id' | 'code'>
@@ -38,7 +39,7 @@ function empty(): FormState {
     fiscal_month: null,
     address: null,
     tax_office: null,
-    contract_date: new Date().toISOString().split('T')[0],
+    contract_date: getLocalDate(),
     contact_name: null,
     contact_phone: null,
     contact_email: null,
@@ -127,7 +128,7 @@ export default function ClientFormModal({ initial, onSave, onClose }: Props) {
                   </Field>
                   <Field label="거래처 유형">
                     <div className="flex gap-4 mt-1">
-                      {['매출처', '매입처', '공통'].map(value => (
+                      {['매출처', '매입처', '공통', '기타'].map(value => (
                         <label key={value} className="flex items-center gap-1.5 text-sm cursor-pointer">
                           <input type="radio" name="client_type" checked={form.client_type === value} onChange={() => setRadio('client_type', value)} className="accent-indigo-600" />
                           {value}

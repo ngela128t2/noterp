@@ -1,9 +1,11 @@
 ﻿import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ProjectFormModal from '../components/projects/ProjectFormModal'
+import TemplatePickerModal from '../components/projects/TemplatePickerModal'
 import { useClients } from '../hooks/useClients'
 import { useAddMilestone, useCreateProject, useDeleteMilestone, useDeleteProject, useMilestones, useProjects, useToggleMilestone, useUpdateProject } from '../hooks/useProjects'
 import { supabase } from '../lib/supabase'
+import { shiftYear } from '../lib/projectTemplates'
 import type { Project } from '../types'
 
 interface MilestoneInput {
@@ -65,6 +67,9 @@ export default function ProjectsPage() {
   const deleteProject = useDeleteProject()
 
   const [modal, setModal] = useState<'create' | Project | null>(null)
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false)
+  const [templateMilestones, setTemplateMilestones] = useState<MilestoneInput[]>([])
+  const [templateInitial, setTemplateInitial] = useState<Partial<Project>>({})
   const [expanded, setExpanded] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -133,6 +138,29 @@ export default function ProjectsPage() {
     if (confirm('프로젝트를 삭제하시겠습니까?')) deleteProject.mutate(id)
   }
 
+  const handleTemplateApply = (data: {
+    name: string; type: string; type_detail: string
+    start_date: string; end_date: string; client_id: string | null
+    milestones: { title: string; due_date: string }[]
+  }) => {
+    setTemplateMilestones(data.milestones)
+    setTemplateInitial({
+      name: data.name,
+      type: data.type,
+      type_detail: data.type_detail,
+      start_date: data.start_date,
+      end_date: data.end_date,
+      client_id: data.client_id ?? undefined,
+    })
+    setShowTemplatePicker(false)
+    setModal('create')
+  }
+
+  const clearTemplateState = () => {
+    setTemplateMilestones([])
+    setTemplateInitial({})
+  }
+
   return (
     <div className="p-4 lg:p-6">
       <div className="flex items-center justify-between gap-3 mb-5">
@@ -140,9 +168,20 @@ export default function ProjectsPage() {
           <h2 className="text-2xl font-bold text-gray-900">프로젝트</h2>
           <p className="text-sm text-gray-400 mt-1">거래처와 기간 기준으로 프로젝트를 빠르게 찾아볼 수 있습니다.</p>
         </div>
-        <button onClick={() => setModal('create')} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm whitespace-nowrap">
-          + 프로젝트 추가
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowTemplatePicker(true)}
+            className="px-3 py-2 border border-indigo-300 text-indigo-600 hover:bg-indigo-50 text-sm font-medium rounded-lg whitespace-nowrap"
+          >
+            템플릿으로 시작
+          </button>
+          <button
+            onClick={() => { clearTemplateState(); setModal('create') }}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm whitespace-nowrap"
+          >
+            + 직접 추가
+          </button>
+        </div>
       </div>
 
       <section className="bg-white rounded-xl border border-gray-200 p-4 mb-4 shadow-sm">
@@ -212,13 +251,23 @@ export default function ProjectsPage() {
         </div>
       )}
 
+      {showTemplatePicker && (
+        <TemplatePickerModal
+          clients={clients}
+          onApply={handleTemplateApply}
+          onBlank={() => { clearTemplateState(); setShowTemplatePicker(false); setModal('create') }}
+          onClose={() => setShowTemplatePicker(false)}
+        />
+      )}
+
       {modal !== null && (
         <ProjectFormModal
-          initial={modal === 'create' ? undefined : modal}
+          initial={modal === 'create' ? templateInitial : modal}
+          initialMilestones={modal === 'create' ? templateMilestones : undefined}
           clients={clients}
           error={saveError}
           onSave={handleSave}
-          onClose={() => { setModal(null); setSaveError(null) }}
+          onClose={() => { setModal(null); setSaveError(null); clearTemplateState() }}
         />
       )}
     </div>
@@ -238,12 +287,54 @@ function ProjectRow({
   const toggleMilestone = useToggleMilestone()
   const addMilestone = useAddMilestone()
   const deleteMilestone = useDeleteMilestone()
+  const createProject = useCreateProject()
   const done = milestones.filter(m => m.completed).length
   const memoEntries = parseProjectMemo(project.memo)
 
   const [newDate, setNewDate] = useState('')
   const [newTime, setNewTime] = useState('')
   const [newTitle, setNewTitle] = useState('')
+  const [rollingOver, setRollingOver] = useState(false)
+
+  const handleRollover = async () => {
+    if (!confirm('이 프로젝트를 1년 후 날짜로 복사하겠습니까?')) return
+    setRollingOver(true)
+    try {
+      const yearMatch = project.name.match(/\d{4}/)
+      const nextYear = (yearMatch ? parseInt(yearMatch[0]) : new Date().getFullYear()) + 1
+      const newName = yearMatch ? project.name.replace(yearMatch[0], String(nextYear)) : `${project.name} ${nextYear}`
+
+      createProject.mutate({
+        name: newName,
+        client_id: project.client_id,
+        type: project.type,
+        type_detail: project.type_detail,
+        start_date: project.start_date ? shiftYear(project.start_date, 1) : null,
+        end_date: project.end_date ? shiftYear(project.end_date, 1) : null,
+        status: 'preparing',
+        manager_id: project.manager_id,
+        memo: null,
+        needs_review: false,
+        source: 'rollover',
+      }, {
+        onSuccess: async (newProject) => {
+          if (milestones.length > 0) {
+            await supabase.from('milestones').insert(
+              milestones.map(m => ({
+                project_id: newProject.id,
+                title: m.title,
+                due_date: m.due_date ? shiftYear(m.due_date, 1) : null,
+                completed: false,
+              })),
+            )
+          }
+        },
+        onSettled: () => setRollingOver(false),
+      })
+    } catch {
+      setRollingOver(false)
+    }
+  }
 
   const handleAddMilestone = async () => {
     const title = newTitle.trim()
@@ -306,6 +397,14 @@ function ProjectRow({
             워크스페이스
           </Link>
           <button onClick={onEdit} className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg">수정</button>
+          <button
+            onClick={handleRollover}
+            disabled={rollingOver}
+            className="px-3 py-1.5 text-xs text-amber-500 hover:bg-amber-50 rounded-lg disabled:opacity-40"
+            title="1년 후 날짜로 동일 프로젝트 복사"
+          >
+            {rollingOver ? '복사 중...' : '↻ 새해 복사'}
+          </button>
           <button onClick={onDelete} className="px-3 py-1.5 text-xs text-red-400 hover:bg-red-50 rounded-lg">삭제</button>
           <span className="ml-auto text-xs text-gray-300">{expanded ? '접기' : '열기'}</span>
         </div>
