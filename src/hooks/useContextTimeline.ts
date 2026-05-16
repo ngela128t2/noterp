@@ -75,20 +75,26 @@ function buildWorkItems(
     }
   }
 
-  // Layer 4: 마일스톤 제목이 이벤트 제목을 포함하고 날짜가 14일 이내이면 마일스톤 제거
-  // (메모 저장 시 같은 내용으로 이벤트+마일스톤이 동시 생성되는 경우 처리)
+  // Layer 4: 마일스톤과 이벤트가 같은 내용이면 마일스톤 제거
+  // 대괄호·대시·특수문자 제거 후 양방향 포함 체크 (날짜 14일 이내)
+  const normT = (s: string) =>
+    s.trim().toLowerCase()
+      .replace(/[\[\]()（）【】「」\-–—·]/g, ' ')
+      .replace(/\s+/g, ' ').trim()
+
   const eventItems = items.filter(i => i.source === 'event')
   for (const m of milestones) {
     if (usedMilestoneIds.has(m.id)) continue
-    const mTitle = m.title.trim().toLowerCase()
+    const mNorm = normT(m.title)
     const isDupOfEvent = eventItems.some(ev => {
-      const evTitle = ev.title.trim().toLowerCase()
-      if (evTitle.length < 4) return false
-      if (!mTitle.includes(evTitle)) return false
+      const evNorm = normT(ev.title)
+      if (mNorm.length < 4 || evNorm.length < 4) return false
+      // 양방향: 마일스톤이 이벤트 포함하거나, 이벤트가 마일스톤 포함
+      if (!mNorm.includes(evNorm) && !evNorm.includes(mNorm)) return false
       // 날짜 14일 이내
       const d1 = m.due_date ? new Date(m.due_date).getTime() : null
       const d2 = ev.date ? new Date(ev.date).getTime() : null
-      if (d1 === null || d2 === null) return true // 날짜 없으면 제목만으로 판단
+      if (d1 === null || d2 === null) return true
       return Math.abs(d1 - d2) <= 14 * 24 * 60 * 60 * 1000
     })
     if (isDupOfEvent) usedMilestoneIds.add(m.id)

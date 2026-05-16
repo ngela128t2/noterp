@@ -135,11 +135,10 @@ export default function MemoPage() {
   const location = useLocation()
   const lastContext = useWorkspaceStore(s => s.lastContext)
   const rawRouteState = location.state as { clientId?: string; projectId?: string } | null
-  // 사이드바에서 직접 진입 시 lastContext를 기본값으로 사용
-  const routeState = rawRouteState ?? (lastContext
-    ? (lastContext.type === 'client'
-        ? { clientId: lastContext.id }
-        : { projectId: lastContext.id })
+  // 명시적 진입(워크스페이스 메모 버튼)일 때만 컨텍스트 사용
+  // lastContext가 project 타입이면 프로젝트를 자동으로 채우지 않음 (의도치 않은 연결 방지)
+  const routeState = rawRouteState ?? (lastContext?.type === 'client'
+    ? { clientId: lastContext.id }
     : null)
   const [state, setState] = useState<State>('idle')
   const [parsed, setParsed] = useState<ParsedResult | null>(null)
