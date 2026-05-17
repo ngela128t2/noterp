@@ -18,6 +18,10 @@ async function getCurrentUser() {
   return user
 }
 
+// 빈 문자열·공백만 있는 문자열을 null로 정규화 (?? 가 빈 문자열을 통과시키는 문제 해결)
+const norm = (v: unknown): string | null =>
+  typeof v === 'string' && v.trim().length > 0 ? v.trim() : null
+
 export function useProfile() {
   return useQuery({
     queryKey: ['profile'],
@@ -29,21 +33,21 @@ export function useProfile() {
         .eq('id', user.id)
         .maybeSingle()
       if (error) throw error
-      const meta = user.user_metadata ?? {}
-      // Google OAuth는 'name', 'full_name', 'given_name+family_name' 중 하나로 줍니다
-      const googleName = (meta.full_name as string)
-        ?? (meta.name as string)
-        ?? [meta.given_name, meta.family_name].filter(Boolean).join(' ')
-        ?? null
-      const avatar = (meta.avatar_url as string) ?? (meta.picture as string) ?? null
-      const provider = (user.app_metadata?.provider as string) ?? null
+      const meta = (user.user_metadata ?? {}) as Record<string, unknown>
+      // Google OAuth: name / full_name / given_name + family_name 중 하나
+      const googleName =
+        norm(meta.full_name) ||
+        norm(meta.name) ||
+        norm([meta.given_name, meta.family_name].filter(Boolean).join(' '))
+      const avatar = norm(meta.avatar_url) || norm(meta.picture)
+      const provider = norm(user.app_metadata?.provider)
       return {
         id: user.id,
-        email: user.email ?? (meta.email as string) ?? '',
-        full_name: data?.full_name ?? googleName ?? null,
-        company:   data?.company   ?? (meta.company as string) ?? null,
-        role:      data?.role      ?? (meta.role    as string) ?? null,
-        phone:     data?.phone     ?? (meta.phone   as string) ?? null,
+        email: norm(user.email) || norm(meta.email) || '',
+        full_name: norm(data?.full_name) || googleName,
+        company:   norm(data?.company)   || norm(meta.company),
+        role:      norm(data?.role)      || norm(meta.role),
+        phone:     norm(data?.phone)     || norm(meta.phone),
         avatar_url: avatar,
         provider,
       }
