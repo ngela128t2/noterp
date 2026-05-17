@@ -24,15 +24,12 @@ const norm = (v: unknown): string | null =>
 
 export function useProfile() {
   return useQuery({
-    queryKey: ['profile'],
+    // v2로 버스트 — 이전 캐시된 빈 데이터 무효화
+    queryKey: ['profile', 'v2'],
+    staleTime: 0,
+    refetchOnMount: 'always',
     queryFn: async (): Promise<Profile> => {
       const user = await getCurrentUser()
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle()
-      if (error) throw error
       const meta = (user.user_metadata ?? {}) as Record<string, unknown>
       // Google OAuth: name / full_name / given_name + family_name 중 하나
       const googleName =
@@ -41,16 +38,37 @@ export function useProfile() {
         norm([meta.given_name, meta.family_name].filter(Boolean).join(' '))
       const avatar = norm(meta.avatar_url) || norm(meta.picture)
       const provider = norm(user.app_metadata?.provider)
-      return {
+
+      // 1차 — auth metadata만으로 베이스 프로필 구성 (profiles 테이블 실패해도 동작)
+      const base: Profile = {
         id: user.id,
         email: norm(user.email) || norm(meta.email) || '',
-        full_name: norm(data?.full_name) || googleName,
-        company:   norm(data?.company)   || norm(meta.company),
-        role:      norm(data?.role)      || norm(meta.role),
-        phone:     norm(data?.phone)     || norm(meta.phone),
+        full_name: googleName,
+        company:   norm(meta.company),
+        role:      norm(meta.role),
+        phone:     norm(meta.phone),
         avatar_url: avatar,
         provider,
       }
+
+      // 2차 — profiles 테이블에 저장된 값이 있으면 덮어쓰기 (실패하면 base 그대로)
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (!error && data) {
+          base.full_name = norm(data.full_name) || base.full_name
+          base.company   = norm(data.company)   || base.company
+          base.role      = norm(data.role)      || base.role
+          base.phone     = norm(data.phone)     || base.phone
+        }
+      } catch (err) {
+        console.warn('[useProfile] profiles 테이블 조회 실패. auth metadata만 사용:', err)
+      }
+
+      return base
     },
   })
 }
