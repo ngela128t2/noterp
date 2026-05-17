@@ -172,10 +172,25 @@ export function formatShortcutHints(hints: MemoShortcutHints) {
   ].filter(Boolean).join('\n')
 }
 
+// 거래처명 끝의 호칭 (있어도/없어도 동일 거래처로 매칭되도록 정규화 시 제거)
+const HONORIFIC_SUFFIX_RE = /\s*(대표님|대표|사장님|사장|회장님|회장|부장님|부장|과장님|과장|차장님|차장|이사님|이사|대리님|대리|주임님|주임|팀장님|팀장|실장님|실장|원장님|원장|선생님|선생)\s*$/
+
+// 거래처명 끝의 일반 법인 접미사 (㈜/주식회사 등)
+const LEGAL_SUFFIX_RE = /(㈜|\(주\)|\(유\)|주식회사|유한회사|유한책임회사|합자회사|합명회사|법인)\s*$/
+
 export function normalizeMemoName(value: string) {
   if (!value) return ''
-  return value
+  let v = value
     .replace(/[\[\]【】()（）{}]/g, '')
+
+  // 호칭/법인 접미사를 반복적으로 제거 (예: "미분당 강남구청역점 대표님" → "미분당 강남구청역점")
+  for (let i = 0; i < 3; i++) {
+    const before = v
+    v = v.replace(HONORIFIC_SUFFIX_RE, '').replace(LEGAL_SUFFIX_RE, '')
+    if (v === before) break
+  }
+
+  return v
     .replace(/[\s·ㆍ,._-]+/g, '')
     .toLowerCase()
 }

@@ -337,17 +337,28 @@ export default function MemoPage() {
 
       // 중복 방지: shortcut + Claude 파싱 결과를 name 기준으로 병합
       const projectInputMap = new Map<string, { name: string; client_name: string | null; milestone: string | null; milestones?: Array<{ title: string; due_date: string | null }> | null }>()
+      // 명시적 shortcut(/[name])으로 지정된 프로젝트
       for (const name of shortcuts.projects) {
         projectInputMap.set(normalizeMemoName(name), { name, client_name: explicitClientNames[0] ?? null, milestone: memoTitle, milestones: null })
       }
-      const parsedExistingProjects = (ep.projects ?? []).filter(p => projectByName.has(normalizeMemoName(p.name)))
-      for (const p of parsedExistingProjects) {
+      // AI가 추출한 모든 프로젝트 (기존/신규 모두) — 신규는 자동 생성됨
+      const allAiProjects = (ep.projects ?? []).filter(p => p.name?.trim() && !isDateOnlyTitle(p.name))
+      for (const p of allAiProjects) {
         const key = normalizeMemoName(p.name)
         const existing = projectInputMap.get(key)
         if (existing) {
-          projectInputMap.set(key, { ...existing, milestones: p.milestones ?? null, milestone: p.milestone ?? existing.milestone })
+          projectInputMap.set(key, {
+            ...existing,
+            milestones: p.milestones ?? existing.milestones,
+            milestone: p.milestone ?? existing.milestone,
+          })
         } else {
-          projectInputMap.set(key, { name: p.name, client_name: p.client_name, milestone: p.milestone ?? memoTitle, milestones: p.milestones ?? null })
+          projectInputMap.set(key, {
+            name: p.name,
+            client_name: p.client_name,
+            milestone: p.milestone ?? memoTitle,
+            milestones: p.milestones ?? null,
+          })
         }
       }
       const projectInputs = Array.from(projectInputMap.values())
@@ -377,8 +388,12 @@ export default function MemoPage() {
           continue
         }
 
-        if (!shortcuts.projects.some(shortcut => normalizeMemoName(shortcut) === key)) continue
-        if (isDateOnlyTitle(name)) continue  // 날짜형 이름 프로젝트 생성 차단
+        // 신규 프로젝트 — shortcut 또는 AI 식별 모두 자동 생성 (needs_review: true 로 마크)
+        if (isDateOnlyTitle(name)) continue                 // 날짜형 이름 차단
+        if (name.length < 3) continue                        // 너무 짧은 이름 차단
+
+        const fromShortcut = shortcuts.projects.some(s => normalizeMemoName(s) === key)
+        const source = fromShortcut ? 'memo' : 'memo_ai'
 
         const { data, error } = await supabase
           .from('projects')
@@ -394,12 +409,15 @@ export default function MemoPage() {
             manager_id: null,
             memo: appendMemo(null, rt),
             needs_review: true,
-            source: 'memo',
+            source,
             created_from_memo_id: memoId,
           })
           .select('id, name, memo, client_id')
           .single()
-        if (error) throw error
+        if (error) {
+          console.warn('[projects_insert] 실패:', error.message)
+          continue
+        }
         if (data) {
           const row = data as ProjectRow
           projectByName.set(normalizeMemoName(row.name), row)
@@ -408,7 +426,10 @@ export default function MemoPage() {
         }
       }
 
-      const primaryProjectName = shortcuts.projects[0] ?? parsedExistingProjects[0]?.name ?? null
+      // primary project fallback 체인:
+      //   1) 명시 shortcut (/[name])
+      //   2) AI 추출 프로젝트 첫번째 (방금 자동 생성된 것 포함)
+      const primaryProjectName = shortcuts.projects[0] ?? allAiProjects[0]?.name ?? null
       const primaryProject = primaryProjectName ? projectByName.get(normalizeMemoName(primaryProjectName)) : null
       const primaryProjectId = primaryProject?.id ?? null
       // 거래처 fallback 체인:
