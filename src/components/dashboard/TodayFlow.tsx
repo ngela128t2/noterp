@@ -53,44 +53,44 @@ function MemoCard({ memo, derived }: StreamGroup) {
       onClick={() => navigateToItem(memo, navigate)}
       className="w-full text-left bg-white rounded-xl border border-gray-100 hover:border-amber-200 hover:shadow-sm transition-all p-4 group"
     >
-      {/* 메모 본문 — 강조 */}
-      <div className="flex items-start gap-2.5 mb-1">
-        <span className="text-base leading-none mt-0.5 shrink-0">📝</span>
-        <p className="flex-1 text-sm font-semibold text-gray-900 leading-snug group-hover:text-indigo-600 line-clamp-2">
+      {/* 메모 본문 — 강조, 가로 1줄 우선 */}
+      <div className="flex items-center gap-2.5 mb-1">
+        <span className="text-base leading-none shrink-0">📝</span>
+        <p className="flex-1 min-w-0 text-sm font-semibold text-gray-900 group-hover:text-indigo-600 truncate break-keep">
           {memo.title}
         </p>
-        <span className="text-[10px] font-mono text-gray-300 shrink-0 mt-1">
+        <span className="text-[10px] font-mono text-gray-300 shrink-0">
           {timeLabel(memo.created_at)}
         </span>
       </div>
 
-      {/* 파생 항목 — 작고 흐리게 */}
+      {/* 파생 항목 — 작고 흐리게, 가로 1줄 우선 */}
       {(connectedClients.length > 0 || connectedProjects.length > 0 || derived.length > 0) && (
         <div className="pl-7 mt-2 space-y-0.5">
           {/* 거래처 연결 — 최상단 */}
           {connectedClients.map(name => (
-            <div key={`c-${name}`} className="flex items-baseline gap-1.5 text-xs">
-              <span className="text-gray-300">↳</span>
-              <span className="text-gray-500">거래처</span>
-              <span className="text-indigo-500 font-medium truncate">· {name}</span>
+            <div key={`c-${name}`} className="flex items-center gap-1.5 text-xs min-w-0">
+              <span className="text-gray-300 shrink-0">↳</span>
+              <span className="text-gray-500 shrink-0">거래처</span>
+              <span className="text-indigo-500 font-medium truncate break-keep flex-1 min-w-0">· {name}</span>
             </div>
           ))}
 
           {/* 프로젝트 연결 */}
           {connectedProjects.map(name => (
-            <div key={`p-${name}`} className="flex items-baseline gap-1.5 text-xs">
-              <span className="text-gray-300">↳</span>
-              <span className="text-gray-500">프로젝트</span>
-              <span className="text-purple-500 font-medium truncate">· {name}</span>
+            <div key={`p-${name}`} className="flex items-center gap-1.5 text-xs min-w-0">
+              <span className="text-gray-300 shrink-0">↳</span>
+              <span className="text-gray-500 shrink-0">프로젝트</span>
+              <span className="text-purple-500 font-medium truncate break-keep flex-1 min-w-0">· {name}</span>
             </div>
           ))}
 
           {/* 파생 항목 (일정/할일/마일스톤) */}
           {visible.map(d => (
-            <div key={`${d.stream_type}-${d.id}`} className="flex items-baseline gap-1.5 text-xs text-gray-400">
-              <span className="text-gray-300">↳</span>
-              <span className="text-gray-500">{TYPE_LABEL[d.stream_type]}</span>
-              <span className="text-gray-400 truncate">· {d.title}</span>
+            <div key={`${d.stream_type}-${d.id}`} className="flex items-center gap-1.5 text-xs text-gray-400 min-w-0">
+              <span className="text-gray-300 shrink-0">↳</span>
+              <span className="text-gray-500 shrink-0">{TYPE_LABEL[d.stream_type]}</span>
+              <span className="text-gray-400 truncate break-keep flex-1 min-w-0">· {d.title}</span>
             </div>
           ))}
           {hidden > 0 && (
@@ -115,7 +115,7 @@ function OrphanRow({ item }: { item: StreamItem }) {
     >
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TYPE_DOT[item.stream_type]}`} />
       <span className="text-[11px] text-gray-400 shrink-0 w-10">{TYPE_LABEL[item.stream_type]}</span>
-      <span className="flex-1 min-w-0 text-xs text-gray-600 group-hover:text-indigo-600 truncate">{item.title}</span>
+      <span className="flex-1 min-w-0 text-xs text-gray-600 group-hover:text-indigo-600 truncate break-keep">{item.title}</span>
       <span className="text-[10px] font-mono text-gray-300 shrink-0">{timeLabel(item.created_at)}</span>
     </button>
   )

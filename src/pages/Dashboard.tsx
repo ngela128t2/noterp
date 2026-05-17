@@ -322,16 +322,16 @@ function BriefingSection({ briefing, loading, onGenerate, onClose }: {
         <>
           <ol className="space-y-2.5">
             {visible.map((item, i) => (
-              <li key={i} className="flex items-start gap-2.5">
+              <li key={i} className="flex items-start gap-2.5 min-w-0">
                 <span className="text-xs font-semibold text-indigo-400 shrink-0 w-4 mt-0.5">{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 leading-snug">{item.title}</p>
+                  <p className="text-sm font-medium text-gray-800 truncate break-keep">{item.title}</p>
                   {item.details.length > 0 && (
                     <ul className="mt-1 space-y-0.5">
                       {item.details.map((d, j) => (
-                        <li key={j} className="text-[11px] text-gray-500 flex items-baseline gap-1.5">
-                          <span className="text-gray-300">·</span>
-                          <span>{d}</span>
+                        <li key={j} className="text-[11px] text-gray-500 flex items-center gap-1.5 min-w-0">
+                          <span className="text-gray-300 shrink-0">·</span>
+                          <span className="truncate break-keep flex-1 min-w-0">{d}</span>
                         </li>
                       ))}
                     </ul>
@@ -364,16 +364,16 @@ function OpenLoopRow({ loop, onMemo, onComplete, onSnooze, onNavigate }: {
   const contextParts = loop.context.split(' · ').slice(1)
 
   return (
-    <div className="px-4 py-3.5">
-      <div className="flex items-start gap-3">
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-3 min-w-0">
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] text-gray-400 mb-0.5">
+          <p className="text-[11px] text-gray-400 mb-0.5 truncate">
             {loop.daysStalled > 0 ? `${loop.daysStalled}일 후속 없음` : '후속 필요'}
             {contextParts.length > 0 && <span className="text-gray-300"> · {contextParts.join(' · ')}</span>}
           </p>
-          <p className="text-sm font-medium text-gray-800 leading-snug">{loop.title}</p>
+          <p className="text-sm font-medium text-gray-800 truncate break-keep">{loop.title}</p>
         </div>
-        <div className="flex items-center gap-1 shrink-0 mt-0.5">
+        <div className="flex items-center gap-1 shrink-0">
           <button onClick={onMemo} className="text-[11px] px-2 py-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors">메모</button>
           {isTodo && (
             <>
