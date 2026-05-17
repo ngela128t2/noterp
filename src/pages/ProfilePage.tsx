@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useProfile, useUpdatePassword, useDeleteAccount } from '../hooks/useProfile'
 
@@ -219,13 +219,41 @@ function PasswordSection() {
 }
 
 // ── 위험 영역 ──────────────────────────────────────────────────────────────────
+// 다단계 확인으로 실수 방지:
+//   Step 1: 영향 안내 화면 (취소가 기본)
+//   Step 2: "탈퇴합니다" 문구 정확히 입력
+//   Step 3: 비밀번호 재확인 + 3초 대기 후 버튼 활성화
+const CONFIRM_PHRASE = '탈퇴합니다'
+const HOLD_SECONDS = 3
+
 function DangerZone() {
   const deleteAccount = useDeleteAccount()
-  const [showModal, setShowModal] = useState(false)
+  const [step, setStep] = useState<0 | 1 | 2 | 3>(0)
+  const [typedPhrase, setTypedPhrase] = useState('')
   const [password, setPassword] = useState('')
+  const [holdRemain, setHoldRemain] = useState(HOLD_SECONDS)
   const [error, setError] = useState<string | null>(null)
 
+  const reset = () => {
+    setStep(0)
+    setTypedPhrase('')
+    setPassword('')
+    setHoldRemain(HOLD_SECONDS)
+    setError(null)
+  }
+
+  // Step 3 진입 시 3초 카운트다운
+  useEffect(() => {
+    if (step !== 3) return
+    setHoldRemain(HOLD_SECONDS)
+    const id = setInterval(() => {
+      setHoldRemain(prev => (prev <= 1 ? 0 : prev - 1))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [step])
+
   const handleDelete = async () => {
+    if (holdRemain > 0) return
     setError(null)
     try {
       await deleteAccount.mutateAsync(password)
@@ -235,6 +263,8 @@ function DangerZone() {
     }
   }
 
+  const phraseOk = typedPhrase.trim() === CONFIRM_PHRASE
+
   return (
     <>
       <SectionCard title="계정 관리">
@@ -243,30 +273,110 @@ function DangerZone() {
             className="w-full px-4 py-2.5 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors text-left">
             로그아웃
           </button>
-          <button onClick={() => setShowModal(true)}
-            className="w-full px-4 py-2.5 border border-red-200 text-red-500 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors text-left">
+          <button onClick={() => setStep(1)}
+            className="w-full px-4 py-2.5 border border-gray-200 text-gray-400 text-xs rounded-lg hover:bg-gray-50 hover:text-red-500 hover:border-red-200 transition-colors text-left">
             회원탈퇴
           </button>
         </div>
       </SectionCard>
 
-      {showModal && (
+      {/* Step 1: 안내 */}
+      {step === 1 && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="text-base font-bold text-gray-900 mb-1">정말 탈퇴하시겠습니까?</h3>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-2xl">⚠️</span>
+              <h3 className="text-base font-bold text-gray-900">정말 탈퇴하시겠습니까?</h3>
+            </div>
+            <div className="bg-red-50 border border-red-100 rounded-lg p-3 mb-4 text-xs text-red-600 space-y-1">
+              <p className="font-semibold">아래 데이터가 모두 영구 삭제됩니다:</p>
+              <ul className="space-y-0.5 ml-3 list-disc">
+                <li>모든 메모와 AI 분석 결과</li>
+                <li>거래처 / 프로젝트 / 일정 / 할 일</li>
+                <li>연락처 / 활동 로그 / 습관 기록</li>
+                <li>세무대리 접수 / 수금 / 마감 데이터</li>
+              </ul>
+              <p className="pt-1 font-semibold">⚠️ 복구할 수 없습니다.</p>
+            </div>
             <p className="text-sm text-gray-500 mb-4">
-              모든 데이터가 <span className="text-red-500 font-semibold">영구 삭제</span>되며 복구할 수 없습니다.
+              <span className="font-semibold text-gray-700">데이터를 보관하려면</span> 먼저 워크스페이스에서 백업하시거나, 잠시만 사용을 중단하시면 됩니다 (탈퇴하지 않아도 됩니다).
             </p>
-            <label className={labelCls}>비밀번호 재확인</label>
+            <div className="flex gap-2 justify-end">
+              <button onClick={reset}
+                className="flex-1 px-4 py-2.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors">
+                취소 (권장)
+              </button>
+              <button onClick={() => setStep(2)}
+                className="px-4 py-2.5 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                계속 진행
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: 확인 문구 입력 */}
+      {step === 2 && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-1">탈퇴 의사 확인</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              아래 문구를 정확히 입력해주세요.
+            </p>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 mb-3 text-center">
+              <code className="text-sm font-mono text-red-600 font-bold tracking-wider select-none">{CONFIRM_PHRASE}</code>
+            </div>
+            <input
+              value={typedPhrase}
+              onChange={e => setTypedPhrase(e.target.value)}
+              type="text"
+              autoFocus
+              autoComplete="off"
+              className={`${inputCls} mb-4 ${phraseOk ? 'border-red-300' : ''}`}
+              placeholder={`"${CONFIRM_PHRASE}" 입력`}
+            />
+            <div className="flex gap-2 justify-end">
+              <button onClick={reset}
+                className="flex-1 px-4 py-2.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors">
+                취소
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                disabled={!phraseOk}
+                className="px-4 py-2.5 text-xs text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                다음
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: 비밀번호 + 카운트다운 */}
+      {step === 3 && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-1">마지막 확인</h3>
+            <p className="text-sm text-gray-500 mb-4">비밀번호를 입력하고 {HOLD_SECONDS}초 후 탈퇴할 수 있습니다.</p>
+            <label className={labelCls}>비밀번호</label>
             <input value={password} onChange={e => setPassword(e.target.value)}
-              type="password" className={`${inputCls} mb-3`} placeholder="현재 비밀번호 입력" />
+              type="password" autoFocus className={`${inputCls} mb-3`} placeholder="현재 비밀번호" />
             {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3">{error}</p>}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => { setShowModal(false); setPassword(''); setError(null) }}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">취소</button>
-              <button onClick={handleDelete} disabled={!password || deleteAccount.isPending}
-                className="px-4 py-2 text-sm bg-red-500 hover:bg-red-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-lg transition-colors">
-                {deleteAccount.isPending ? '처리 중...' : '탈퇴 확인'}
+              <button onClick={reset}
+                className="flex-1 px-4 py-2.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors">
+                취소 (권장)
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={!password || deleteAccount.isPending || holdRemain > 0}
+                className="px-4 py-2.5 text-xs bg-red-500 hover:bg-red-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
+              >
+                {deleteAccount.isPending
+                  ? '처리 중...'
+                  : holdRemain > 0
+                    ? `${holdRemain}초 후 탈퇴 가능`
+                    : '영구 삭제'}
               </button>
             </div>
           </div>

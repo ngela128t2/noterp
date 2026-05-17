@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Mic, MicOff } from 'lucide-react'
 import { useClients } from '../../hooks/useClients'
 import { useProjects } from '../../hooks/useProjects'
 import { parseMemoEdge as parseMemo } from '../../lib/edgeFunctions'
@@ -223,13 +224,17 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
             type="button"
             onClick={toggleListening}
             title={listening ? '음성 인식 중지' : '음성으로 입력'}
-            className={`flex flex-col items-center justify-center gap-1 w-14 rounded-xl border-2 transition-all shrink-0 ${
+            className={`flex flex-col items-center justify-center gap-1.5 w-14 rounded-xl border-2 transition-all shrink-0 ${
               listening
-                ? 'border-red-400 bg-red-50 text-red-500'
+                ? 'border-red-400 bg-red-50 text-red-500 shadow-sm shadow-red-100'
                 : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-500'
             }`}
           >
-            <span className={`text-2xl leading-none ${listening ? 'animate-pulse' : ''}`}>🎤</span>
+            {listening ? (
+              <MicOff size={22} strokeWidth={2.2} className="animate-pulse" />
+            ) : (
+              <Mic size={22} strokeWidth={2.2} />
+            )}
             <span className="text-[10px] font-medium leading-none">{listening ? '중지' : '음성'}</span>
           </button>
         )}
