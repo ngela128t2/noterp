@@ -75,8 +75,14 @@ function useActivityStream(params: {
 
 /**
  * 오늘 생성된 activity_stream 조회 + memo_id 그룹핑
+ *
+ * 기본 동작:
+ *   - activity_logs는 노이즈이므로 제외 (includeActivity: true 시 포함)
+ *   - 메모를 중심으로 파생 항목을 그룹화
+ *   - 메모 없는 단독 일정/할일은 orphan으로 분리
  */
-export function useTodayFlow() {
+export function useTodayFlow(options: { includeActivity?: boolean } = {}) {
+  const { includeActivity = false } = options
   const since = useMemo(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -86,8 +92,13 @@ export function useTodayFlow() {
   const query = useActivityStream({ since, limit: 200 })
 
   const rows = useMemo<StreamRow[]>(() => {
-    const items = query.data ?? []
+    let items = query.data ?? []
     if (items.length === 0) return []
+
+    // 시스템 자동 로그는 노이즈 → 기본적으로 제외
+    if (!includeActivity) {
+      items = items.filter(i => i.stream_type !== 'activity')
+    }
 
     // 메모 우선 처리
     const memos = items.filter(i => i.stream_type === 'memo')
@@ -124,7 +135,7 @@ export function useTodayFlow() {
     const sortKey = (r: StreamRow) =>
       r.kind === 'memo-group' ? r.memo.created_at : r.item.created_at
     return [...groups, ...orphans].sort((a, b) => sortKey(b).localeCompare(sortKey(a)))
-  }, [query.data])
+  }, [query.data, includeActivity])
 
   return {
     rows,

@@ -1,28 +1,31 @@
 import { useNavigate } from 'react-router-dom'
-import { useTodayFlow, type StreamItem } from '../../hooks/useActivityStream'
+import { useTodayFlow, type StreamItem, type StreamGroup, type StreamOrphan } from '../../hooks/useActivityStream'
 
 function timeLabel(iso: string) {
   const d = new Date(iso)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-const STREAM_META: Record<StreamItem['stream_type'], { label: string; emoji: string; cls: string }> = {
-  memo:      { label: '메모',       emoji: '📝', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  event:     { label: '일정',       emoji: '📅', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  todo:      { label: '할 일',      emoji: '✓',  cls: 'bg-orange-50 text-orange-700 border-orange-200' },
-  milestone: { label: '마일스톤',   emoji: '🎯', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
-  activity:  { label: '활동',       emoji: '·',  cls: 'bg-gray-50 text-gray-500 border-gray-200' },
+const TYPE_LABEL: Record<StreamItem['stream_type'], string> = {
+  memo: '메모',
+  event: '일정',
+  todo: '할 일',
+  milestone: '마일스톤',
+  activity: '활동',
+}
+
+const TYPE_DOT: Record<StreamItem['stream_type'], string> = {
+  memo: 'bg-amber-400',
+  event: 'bg-blue-400',
+  todo: 'bg-orange-400',
+  milestone: 'bg-purple-400',
+  activity: 'bg-gray-300',
 }
 
 function navigateToItem(item: StreamItem, navigate: ReturnType<typeof useNavigate>) {
-  // 우선순위: 메모 → 메모 페이지 / 그 외 → workspace 또는 기능 페이지
-  if (item.stream_type === 'memo') {
-    navigate('/memo')
-    return
-  }
+  if (item.stream_type === 'memo') return navigate('/memo')
   if (item.client_id)  return navigate(`/workspace/client/${item.client_id}`)
   if (item.project_id) return navigate(`/workspace/project/${item.project_id}`)
-
   switch (item.stream_type) {
     case 'event':     return navigate('/calendar')
     case 'todo':      return navigate('/todos')
@@ -31,60 +34,99 @@ function navigateToItem(item: StreamItem, navigate: ReturnType<typeof useNavigat
   }
 }
 
-function ItemRow({ item, indent = false, showMemoBadge = false }: { item: StreamItem; indent?: boolean; showMemoBadge?: boolean }) {
+// 메모 카드 — 원본 메모 + 파생 항목을 하나의 카드로 압축
+function MemoCard({ memo, derived }: StreamGroup) {
   const navigate = useNavigate()
-  const meta = STREAM_META[item.stream_type]
+  const visible = derived.slice(0, 4)
+  const hidden = derived.length - visible.length
+
   return (
     <button
-      onClick={() => navigateToItem(item, navigate)}
-      className={`w-full flex items-start gap-2 px-3 py-2 hover:bg-gray-50 transition-colors text-left group ${indent ? 'pl-9' : ''}`}
+      onClick={() => navigateToItem(memo, navigate)}
+      className="w-full text-left bg-white rounded-xl border border-gray-100 hover:border-amber-200 hover:shadow-sm transition-all p-4 group"
     >
-      <span className="text-[10px] font-mono text-gray-300 shrink-0 pt-1 w-10">{timeLabel(item.created_at)}</span>
-      <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 mt-0.5 font-medium ${meta.cls}`}>
-        <span className="mr-0.5">{meta.emoji}</span>{meta.label}
-      </span>
-      <span className="flex-1 min-w-0 text-sm text-gray-700 group-hover:text-indigo-600 truncate">
-        {item.title}
-      </span>
-      {showMemoBadge && item.memo_id && (
-        <span className="text-[10px] text-amber-500 shrink-0 mt-1" title="원본 메모에서 생성됨">↳</span>
+      {/* 메모 본문 — 강조 */}
+      <div className="flex items-start gap-2.5 mb-1">
+        <span className="text-base leading-none mt-0.5 shrink-0">📝</span>
+        <p className="flex-1 text-sm font-semibold text-gray-900 leading-snug group-hover:text-indigo-600 line-clamp-2">
+          {memo.title}
+        </p>
+        <span className="text-[10px] font-mono text-gray-300 shrink-0 mt-1">
+          {timeLabel(memo.created_at)}
+        </span>
+      </div>
+
+      {/* 파생 항목 — 작고 흐리게 */}
+      {derived.length > 0 ? (
+        <div className="pl-7 mt-2 space-y-0.5">
+          {visible.map(d => (
+            <div key={`${d.stream_type}-${d.id}`} className="flex items-baseline gap-1.5 text-xs text-gray-400">
+              <span className="text-gray-300">↳</span>
+              <span className="text-gray-500">{TYPE_LABEL[d.stream_type]}</span>
+              <span className="text-gray-400 truncate">· {d.title}</span>
+            </div>
+          ))}
+          {hidden > 0 && (
+            <div className="text-[11px] text-gray-300 pl-3">↳ 외 {hidden}건 더</div>
+          )}
+        </div>
+      ) : (
+        <div className="pl-7 mt-1.5 text-[11px] text-gray-300">— 파생 항목 없음</div>
       )}
     </button>
   )
 }
 
+// Orphan — 메모 없이 직접 추가된 일정/할일/마일스톤 (보조)
+function OrphanRow({ item }: { item: StreamItem }) {
+  const navigate = useNavigate()
+  return (
+    <button
+      onClick={() => navigateToItem(item, navigate)}
+      className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 transition-colors text-left group"
+    >
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TYPE_DOT[item.stream_type]}`} />
+      <span className="text-[11px] text-gray-400 shrink-0 w-10">{TYPE_LABEL[item.stream_type]}</span>
+      <span className="flex-1 min-w-0 text-xs text-gray-600 group-hover:text-indigo-600 truncate">{item.title}</span>
+      <span className="text-[10px] font-mono text-gray-300 shrink-0">{timeLabel(item.created_at)}</span>
+    </button>
+  )
+}
+
 export default function TodayFlow() {
-  const { rows, isLoading, rawCount } = useTodayFlow()
+  const { rows, isLoading } = useTodayFlow()
   const navigate = useNavigate()
 
   if (isLoading) {
     return (
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-800">📊 오늘의 흐름</h2>
+          <h2 className="text-sm font-semibold text-gray-800">오늘의 흐름</h2>
         </div>
-        <div className="bg-white rounded-xl border border-gray-100 px-4 py-6 text-center text-xs text-gray-300">
-          불러오는 중...
-        </div>
+        <div className="h-20 bg-gray-50 rounded-xl animate-pulse" />
       </section>
     )
   }
 
+  const memoGroups = rows.filter((r): r is StreamGroup => r.kind === 'memo-group')
+  const orphans = rows.filter((r): r is StreamOrphan => r.kind === 'orphan')
+
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-gray-800">📊 오늘의 흐름</h2>
-          {rawCount > 0 && (
-            <span className="text-[10px] text-gray-400">{rawCount}건</span>
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-sm font-semibold text-gray-800">오늘의 흐름</h2>
+          {memoGroups.length > 0 && (
+            <span className="text-[11px] text-gray-400">메모 {memoGroups.length}건</span>
           )}
         </div>
-        <button onClick={() => navigate('/memo')} className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
+        <button onClick={() => navigate('/memo')}
+          className="text-xs text-indigo-500 hover:text-indigo-700 font-medium">
           + 메모
         </button>
       </div>
 
-      {rows.length === 0 ? (
+      {memoGroups.length === 0 && orphans.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 px-4 py-8 text-center">
           <p className="text-sm text-gray-400">오늘 새로 생긴 업무가 없습니다</p>
           <button onClick={() => navigate('/memo')} className="mt-2 text-xs text-indigo-500 hover:underline">
@@ -92,25 +134,25 @@ export default function TodayFlow() {
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
-          {rows.map((row, idx) => {
-            if (row.kind === 'memo-group') {
-              const { memo, derived } = row
-              return (
-                <div key={`memo-${memo.id}-${idx}`} className="bg-amber-50/30">
-                  <ItemRow item={memo} />
-                  {derived.length > 0 && (
-                    <div className="bg-white">
-                      {derived.map(d => (
-                        <ItemRow key={`${d.stream_type}-${d.id}`} item={d} indent showMemoBadge />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            }
-            return <ItemRow key={`${row.item.stream_type}-${row.item.id}-${idx}`} item={row.item} />
-          })}
+        <div className="space-y-2.5">
+          {/* 메모 중심 카드 */}
+          {memoGroups.map(g => (
+            <MemoCard key={g.memo.id} {...g} />
+          ))}
+
+          {/* Orphan — 메모 없이 직접 추가된 항목들 */}
+          {orphans.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                직접 추가
+              </div>
+              <div className="divide-y divide-gray-50">
+                {orphans.map(o => (
+                  <OrphanRow key={`${o.item.stream_type}-${o.item.id}`} item={o.item} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>
