@@ -38,22 +38,35 @@ Deno.serve(async (req: Request) => {
 
     const message = await client.messages.create({
       model: MODEL,
-      max_tokens: 200,
+      max_tokens: 400,
       messages: [{
         role: 'user',
-        content: `오늘(${date}) 업무 현황:
+        content: `오늘(${date}) 업무 데이터:
 - 오늘 일정: ${todayEvents.length}건 — ${eventsText}
-- 이번 주 총 일정: ${weekEventCount}건
+- 이번 주 일정: ${weekEventCount}건
 - 미완료 할 일: ${pendingCount}건
 - 연체/긴급: ${overdueCount}건
 - 마감 임박: ${deadlineCount}건
 
-위 현황을 업무 비서처럼 4~6개 항목으로 분류하세요.
-각 항목 앞에 반드시 아래 3가지 마커 중 하나를 붙이세요:
-  [Done]        완료된 일
-  [In Progress] 현재 진행·예정 중인 일
-  [Pending]     아직 시작 안 됨·미확정·follow-up 필요
-형식: "[마커] 한 줄 행동 중심 텍스트"`,
+위 데이터를 보고, 사용자가 오늘 "지금 먼저 봐야 할 일"을 행동 우선순위 순서로 정리하세요.
+업무 보고서가 아니라, 머릿속을 정리해주는 친한 조수의 톤.
+
+반환 형식 (반드시 이 형식만):
+1. {짧고 명확한 제목, 20자 이내}
+   · {핵심 디테일 1줄 — 시간/조건/액션}
+   · {핵심 디테일 1줄 — 선택, 필요한 경우만}
+
+2. {다음 항목 제목}
+   · {디테일}
+
+규칙:
+- 최대 5개 항목
+- 가장 시급한 일이 1번
+- 각 항목은 행동 가능해야 함 (관찰이 아닌 액션)
+- 상태 마커([Done]/[In Progress]/[Pending]) 절대 금지
+- 마크다운 (**, ##, > 등) 절대 금지
+- 같은 정보 반복 금지
+- 일정이 없으면 일정 항목 만들지 말 것 — 실제 데이터만 다룸`,
       }],
     })
 
