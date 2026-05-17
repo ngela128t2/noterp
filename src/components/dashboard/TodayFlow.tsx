@@ -36,6 +36,14 @@ function navigateToWorkspace(item: StreamItem, navigate: ReturnType<typeof useNa
 }
 
 // ── 메모 카드 — 기본 압축 / 클릭 시 펼침 ─────────────────────────────────
+
+// todo의 priority (extra 컬럼)별 시각화
+const PRIORITY_META: Record<string, { dot: string; label: string; text: string }> = {
+  high:   { dot: 'bg-rose-500',   label: '높음', text: 'text-rose-600' },
+  medium: { dot: 'bg-amber-400',  label: '보통', text: 'text-amber-600' },
+  low:    { dot: 'bg-gray-300',   label: '낮음', text: 'text-gray-400' },
+}
+
 function MemoCard({ memo, derived }: StreamGroup) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
@@ -50,16 +58,24 @@ function MemoCard({ memo, derived }: StreamGroup) {
     return acc
   }, {} as Record<string, number>)
 
+  // 높은 우선순위 todo 카운트 (priority는 extra 컬럼)
+  const highPriorityCount = derived.filter(d => d.stream_type === 'todo' && d.extra === 'high').length
+
   const summaryParts: string[] = []
   if (counts.event)     summaryParts.push(`일정 ${counts.event}건`)
   if (counts.todo)      summaryParts.push(`할 일 ${counts.todo}건`)
   if (counts.milestone) summaryParts.push(`마일스톤 ${counts.milestone}건`)
 
   const hasDerived = derived.length > 0
+  const hasUrgent = highPriorityCount > 0
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 hover:border-amber-200 transition-colors overflow-hidden">
-      {/* 헤더 — 항상 보임 (메모 본문 + 시간 + 펼침 화살표) */}
+    <div className={`bg-white rounded-xl border transition-colors overflow-hidden ${
+      hasUrgent
+        ? 'border-rose-200 hover:border-rose-300'
+        : 'border-gray-100 hover:border-amber-200'
+    }`}>
+      {/* 헤더 — 항상 보임 */}
       <button
         onClick={() => hasDerived ? setExpanded(v => !v) : navigate('/memo')}
         className="w-full text-left px-3.5 py-3 group"
@@ -69,6 +85,14 @@ function MemoCard({ memo, derived }: StreamGroup) {
           <p className="flex-1 min-w-0 text-sm font-semibold text-gray-900 group-hover:text-indigo-600 truncate break-keep">
             {memo.title}
           </p>
+          {hasUrgent && (
+            <span
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 shrink-0"
+              title={`긴급/마감 임박 할 일 ${highPriorityCount}건`}
+            >
+              ❗{highPriorityCount}
+            </span>
+          )}
           <span className="text-[10px] font-mono text-gray-300 shrink-0">{timeLabel(memo.created_at)}</span>
           {hasDerived && (
             <ChevronDown
@@ -96,6 +120,9 @@ function MemoCard({ memo, derived }: StreamGroup) {
               <>
                 {(primaryClient || primaryProject) && <span className="text-gray-200 mx-0.5">·</span>}
                 <span className="text-gray-400">{summaryParts.join(' · ')}</span>
+                {hasUrgent && (
+                  <span className="text-rose-500 font-medium">· 급함 {highPriorityCount}</span>
+                )}
               </>
             )}
           </div>
@@ -105,17 +132,25 @@ function MemoCard({ memo, derived }: StreamGroup) {
       {/* 펼침 — 개별 파생 항목 */}
       {expanded && hasDerived && (
         <div className="border-t border-gray-50 bg-gray-50/30 divide-y divide-gray-50">
-          {derived.map(d => (
-            <button
-              key={`${d.stream_type}-${d.id}`}
-              onClick={(e) => { e.stopPropagation(); navigateToWorkspace(d, navigate) }}
-              className="w-full flex items-center gap-2 px-3.5 py-1.5 hover:bg-white transition-colors text-left min-w-0"
-            >
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TYPE_DOT[d.stream_type]}`} />
-              <span className="text-[10px] text-gray-400 shrink-0 w-12">{TYPE_LABEL[d.stream_type]}</span>
-              <span className="flex-1 min-w-0 text-xs text-gray-600 truncate break-keep">{d.title}</span>
-            </button>
-          ))}
+          {derived.map(d => {
+            const priorityMeta = d.stream_type === 'todo' && d.extra ? PRIORITY_META[d.extra] : null
+            return (
+              <button
+                key={`${d.stream_type}-${d.id}`}
+                onClick={(e) => { e.stopPropagation(); navigateToWorkspace(d, navigate) }}
+                className="w-full flex items-center gap-2 px-3.5 py-1.5 hover:bg-white transition-colors text-left min-w-0"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityMeta?.dot ?? TYPE_DOT[d.stream_type]}`} />
+                <span className="text-[10px] text-gray-400 shrink-0 w-12">{TYPE_LABEL[d.stream_type]}</span>
+                <span className="flex-1 min-w-0 text-xs text-gray-600 truncate break-keep">{d.title}</span>
+                {priorityMeta && (
+                  <span className={`text-[9px] font-semibold shrink-0 ${priorityMeta.text}`}>
+                    {priorityMeta.label}
+                  </span>
+                )}
+              </button>
+            )
+          })}
           <div className="px-3.5 py-2 flex justify-end gap-2 bg-gray-50/50">
             <button
               onClick={() => navigate('/memo')}
