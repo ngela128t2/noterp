@@ -115,7 +115,6 @@ function ProfileForm() {
 function EmailSection() {
   const { data: profile } = useProfile()
   const updateEmail = useUpdateEmail()
-  const [editing, setEditing] = useState(false)
   const [newEmail, setNewEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -137,26 +136,24 @@ function EmailSection() {
         <input value={profile?.email ?? ''} readOnly className={`${inputCls} cursor-default`} />
       </Field>
 
-      {!editing && !sent && (
-        <button onClick={() => setEditing(true)} className="text-sm text-indigo-600 hover:underline">
-          이메일 변경
-        </button>
-      )}
-
-      {editing && !sent && (
+      {!sent && (
         <div className="space-y-2">
-          <Field label="새 이메일">
-            <input value={newEmail} onChange={e => setNewEmail(e.target.value)}
-              className={inputCls} placeholder="new@example.com" type="email" />
+          <Field label="새 이메일로 변경">
+            <input
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              className={inputCls}
+              placeholder="new@example.com"
+              type="email"
+            />
           </Field>
           {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-          <div className="flex gap-2 justify-end">
-            <button onClick={() => { setEditing(false); setError(null) }}
-              className="px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-100 rounded-lg">
-              취소
-            </button>
-            <button onClick={handleSend} disabled={!newEmail.trim() || updateEmail.isPending}
-              className="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-lg transition-colors">
+          <div className="flex justify-end">
+            <button
+              onClick={handleSend}
+              disabled={!newEmail.trim() || newEmail === profile?.email || updateEmail.isPending}
+              className="px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-lg transition-colors"
+            >
               {updateEmail.isPending ? '처리 중...' : '인증 메일 발송'}
             </button>
           </div>

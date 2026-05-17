@@ -27,13 +27,14 @@ export function useProfile() {
         .eq('id', user.id)
         .maybeSingle()
       if (error) throw error
+      const meta = user.user_metadata ?? {}
       return {
         id: user.id,
         email: user.email ?? '',
-        full_name: data?.full_name ?? null,
-        company: data?.company ?? null,
-        role: data?.role ?? null,
-        phone: data?.phone ?? null,
+        full_name: data?.full_name ?? (meta.full_name as string) ?? null,
+        company:   data?.company   ?? (meta.company   as string) ?? null,
+        role:      data?.role      ?? (meta.role      as string) ?? null,
+        phone:     data?.phone     ?? (meta.phone     as string) ?? null,
       }
     },
   })

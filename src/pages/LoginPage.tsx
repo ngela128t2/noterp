@@ -3,40 +3,37 @@ import { supabase } from '../lib/supabase'
 
 const SIGNUP_COOLDOWN_MS = 60_000
 
+const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400'
+
 function toKoreanError(message: string): string {
-  if (/rate.limit|too many/i.test(message))
-    return '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.'
-  if (/already registered|already been registered/i.test(message))
-    return '이미 가입된 이메일입니다. 로그인해 주세요.'
-  if (/invalid.*credentials|invalid login/i.test(message))
-    return '이메일 또는 비밀번호가 올바르지 않습니다.'
-  if (/email not confirmed/i.test(message))
-    return '이메일 인증이 필요합니다. 메일함을 확인해 주세요.'
-  if (/password.*characters|weak password|at least/i.test(message))
-    return '비밀번호는 6자 이상이어야 합니다.'
-  if (/user not found/i.test(message))
-    return '등록되지 않은 이메일입니다.'
-  if (/network|fetch|connection/i.test(message))
-    return '네트워크 연결을 확인해 주세요.'
+  if (/rate.limit|too many/i.test(message))   return '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.'
+  if (/already registered|already been/i.test(message)) return '이미 가입된 이메일입니다. 로그인해 주세요.'
+  if (/invalid.*credentials|invalid login/i.test(message)) return '이메일 또는 비밀번호가 올바르지 않습니다.'
+  if (/email not confirmed/i.test(message))   return '이메일 인증이 필요합니다. 메일함을 확인해 주세요.'
+  if (/password.*characters|weak password|at least/i.test(message)) return '비밀번호는 6자 이상이어야 합니다.'
+  if (/user not found/i.test(message))        return '등록되지 않은 이메일입니다.'
+  if (/network|fetch|connection/i.test(message)) return '네트워크 연결을 확인해 주세요.'
   return message
 }
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [company, setCompany] = useState('')
+  const [role, setRole] = useState('')
+  const [phone, setPhone] = useState('')
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [emailSent, setEmailSent] = useState(false)
 
-  // 이중 제출 방지 — React state보다 빠르게 동작
   const submittingRef = useRef(false)
-  // 회원가입 이메일 재전송 쿨다운
   const lastSignupRef = useRef<number>(0)
 
   const handleSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault()
-
     if (submittingRef.current) return
     submittingRef.current = true
     setLoading(true)
@@ -50,10 +47,11 @@ export default function LoginPage() {
         if (error) setError(toKoreanError(error.message))
 
       } else {
+        if (!fullName.trim()) { setError('이름을 입력해 주세요.'); return }
+
         const now = Date.now()
-        const elapsed = now - lastSignupRef.current
-        if (elapsed < SIGNUP_COOLDOWN_MS) {
-          const remaining = Math.ceil((SIGNUP_COOLDOWN_MS - elapsed) / 1000)
+        if (now - lastSignupRef.current < SIGNUP_COOLDOWN_MS) {
+          const remaining = Math.ceil((SIGNUP_COOLDOWN_MS - (now - lastSignupRef.current)) / 1000)
           setError(`이메일을 이미 발송했습니다. ${remaining}초 후에 다시 시도해 주세요.`)
           return
         }
@@ -62,7 +60,15 @@ export default function LoginPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              full_name: fullName.trim(),
+              company:   company.trim() || null,
+              role:      role.trim()    || null,
+              phone:     phone.trim()   || null,
+            },
+          },
         })
         console.log('[auth] signup result:', error ? `error: ${error.message}` : 'success')
 
@@ -119,16 +125,10 @@ export default function LoginPage() {
             우리의 업무는 데이터가 아니라<br />
             기억과 흐름 속에서 움직입니다.
           </p>
-          <p
-            className="text-white text-3xl leading-snug mb-2"
-            style={{ fontFamily: "'Dancing Script', cursive" }}
-          >
+          <p className="text-white text-3xl leading-snug mb-2" style={{ fontFamily: "'Dancing Script', cursive" }}>
             Note Everything.
           </p>
-          <p
-            className="text-white text-3xl leading-snug mb-10"
-            style={{ fontFamily: "'Dancing Script', cursive" }}
-          >
+          <p className="text-white text-3xl leading-snug mb-10" style={{ fontFamily: "'Dancing Script', cursive" }}>
             This is Not Just ERP.
           </p>
           <p className="text-indigo-200 text-sm leading-relaxed">
@@ -140,8 +140,8 @@ export default function LoginPage() {
         <p className="text-indigo-400 text-xs">© 2026 Noterp</p>
       </div>
 
-      {/* 오른쪽 로그인 폼 */}
-      <div className="flex-1 flex items-center justify-center bg-gray-50 px-6">
+      {/* 오른쪽 폼 */}
+      <div className="flex-1 flex items-center justify-center bg-gray-50 px-6 py-10">
         <div className="absolute top-5 left-6 text-base font-bold text-indigo-600 lg:hidden">Noterp</div>
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 w-full max-w-sm">
           <div className="mb-6 text-center">
@@ -150,16 +150,78 @@ export default function LoginPage() {
             </h1>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {/* 회원가입 전용: 기본정보 */}
+            {mode === 'signup' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    이름 <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={e => setFullName(e.target.value)}
+                    required
+                    disabled={loading}
+                    className={inputCls}
+                    placeholder="홍길동"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    회사 / 소속 <span className="text-gray-300 font-normal text-xs">(선택)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={company}
+                    onChange={e => setCompany(e.target.value)}
+                    disabled={loading}
+                    className={inputCls}
+                    placeholder="회계법인 OO"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      직책 <span className="text-gray-300 font-normal text-xs">(선택)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={role}
+                      onChange={e => setRole(e.target.value)}
+                      disabled={loading}
+                      className={inputCls}
+                      placeholder="세무사"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      전화번호 <span className="text-gray-300 font-normal text-xs">(선택)</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      disabled={loading}
+                      className={inputCls}
+                      placeholder="010-0000-0000"
+                    />
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 pt-1" />
+              </>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">이메일</label>
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 required
                 disabled={loading}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
+                className={inputCls}
                 placeholder="email@example.com"
               />
             </div>
@@ -168,10 +230,10 @@ export default function LoginPage() {
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 required
                 disabled={loading}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
+                className={inputCls}
                 placeholder="••••••••"
               />
             </div>
