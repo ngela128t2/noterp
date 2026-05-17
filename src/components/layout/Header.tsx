@@ -31,10 +31,18 @@ export default function Header({ title, onMenuClick }: Props) {
       <span className="text-xl font-bold text-indigo-600 lg:text-gray-300">Noterp</span>
       <span className="text-sm text-gray-400">/ {title}</span>
 
+      {/* 데스크톱: tagline */}
+      <span
+        className="ml-auto hidden lg:block text-gray-400 select-none"
+        style={{ fontFamily: "'Dancing Script', cursive", fontSize: '1.15rem', letterSpacing: '0.01em' }}
+      >
+        Note everything, Not just ERP.
+      </span>
+
       {/* 오른쪽: 이름 + 프로필 아이콘 */}
       <Link
         to="/profile"
-        className="ml-auto flex items-center gap-1.5 text-gray-500 hover:text-indigo-600 transition-colors group"
+        className="lg:ml-2 ml-auto flex items-center gap-1.5 text-gray-500 hover:text-indigo-600 transition-colors group"
       >
         {displayName && (
           <span className="text-sm text-gray-600 group-hover:text-indigo-600 hidden sm:block">
