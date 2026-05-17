@@ -2,6 +2,26 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useProfile, useUpdatePassword, useDeleteAccount } from '../hooks/useProfile'
 
+function buildVCard(name: string, role: string, company: string, phone: string, email: string) {
+  return [
+    'BEGIN:VCARD', 'VERSION:3.0',
+    `FN:${name}`,
+    company ? `ORG:${company}` : '',
+    role    ? `TITLE:${role}` : '',
+    phone   ? `TEL;TYPE=CELL:${phone}` : '',
+    email   ? `EMAIL:${email}` : '',
+    'END:VCARD',
+  ].filter(Boolean).join('\n')
+}
+
+function downloadVCard(name: string, role: string, company: string, phone: string, email: string) {
+  const blob = new Blob([buildVCard(name, role, company, phone, email)], { type: 'text/vcard;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `${name || '내명함'}.vcf`; a.click()
+  URL.revokeObjectURL(url)
+}
+
 function toKoreanError(message: string): string {
   if (/rate.limit|too many/i.test(message))      return '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.'
   if (/invalid.*credentials|invalid login/i.test(message)) return '현재 비밀번호가 올바르지 않습니다.'
@@ -19,6 +39,68 @@ function SectionCard({ title, children }: { title: string; children: React.React
       <h2 className="text-sm font-semibold text-gray-800">{title}</h2>
       {children}
     </div>
+  )
+}
+
+// ── 내 명함 ────────────────────────────────────────────────────────────────────
+function BusinessCard() {
+  const { data: profile } = useProfile()
+  const [showQR, setShowQR] = useState(false)
+
+  const name    = profile?.full_name ?? ''
+  const role    = profile?.role      ?? ''
+  const company = profile?.company   ?? ''
+  const phone   = profile?.phone     ?? ''
+  const email   = profile?.email     ?? ''
+  const hasInfo = !!(name || phone || email)
+
+  const qrData = encodeURIComponent(buildVCard(name, role, company, phone, email))
+
+  return (
+    <SectionCard title="내 명함">
+      {hasInfo ? (
+        <div className="bg-indigo-600 rounded-xl p-4 text-white">
+          <p className="text-lg font-bold">{name || '이름 없음'}</p>
+          {role    && <p className="text-sm text-indigo-200 mt-0.5">{role}</p>}
+          {company && <p className="text-sm text-indigo-200">{company}</p>}
+          <div className="mt-3 space-y-0.5">
+            {phone && <p className="text-sm">📞 {phone}</p>}
+            {email && <p className="text-sm">✉ {email}</p>}
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-400">이름, 전화번호, 이메일을 입력하면 명함이 표시됩니다.</p>
+      )}
+
+      {showQR && hasInfo && (
+        <div className="flex flex-col items-center gap-2">
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${qrData}`}
+            alt="QR 코드"
+            className="w-40 h-40 rounded-lg border border-gray-200"
+          />
+          <p className="text-xs text-gray-400">스캔하면 연락처에 바로 저장됩니다</p>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => downloadVCard(name, role, company, phone, email)}
+          disabled={!hasInfo}
+          className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          📥 vCard 저장
+        </button>
+        <button
+          onClick={() => setShowQR(v => !v)}
+          disabled={!hasInfo}
+          className="flex-1 py-2 border border-gray-200 hover:bg-gray-50 disabled:text-gray-300 text-gray-600 text-sm rounded-lg transition-colors"
+        >
+          {showQR ? 'QR 닫기' : '📷 QR 코드'}
+        </button>
+      </div>
+      <p className="text-xs text-gray-300">이름·직책·전화번호는 위 '내 정보'에서 확인하세요.</p>
+    </SectionCard>
   )
 }
 
@@ -183,6 +265,7 @@ export default function ProfilePage() {
         <h1 className="text-xl font-bold text-gray-900">내 정보 / 계정설정</h1>
       </div>
       <ProfileDisplay />
+      <BusinessCard />
       <PasswordSection />
       <DangerZone />
     </div>

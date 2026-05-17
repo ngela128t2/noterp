@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { NavLink, Link } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -11,14 +10,12 @@ import {
   Clock,
   Users,
   Search,
-  CreditCard,
   LogOut,
   Calculator,
   UserCircle,
 } from 'lucide-react'
 import { useReviewBadges } from '../../hooks/useReviewBadges'
 import { supabase } from '../../lib/supabase'
-import MyCardModal from '../ui/MyCardModal'
 
 const navItems = [
   { to: '/memo',      Icon: PenLine,      label: '메모 입력' },
@@ -41,7 +38,6 @@ interface Props {
 export default function Sidebar({ open, onClose, onSearchOpen }: Props) {
   const handleLogout = () => supabase.auth.signOut()
   const { data: badges } = useReviewBadges()
-  const [cardOpen, setCardOpen] = useState(false)
 
   return (
     <>
@@ -149,13 +145,6 @@ export default function Sidebar({ open, onClose, onSearchOpen }: Props) {
           </NavLink>
           <div className="my-1.5 border-t border-gray-100" />
           <button
-            onClick={() => setCardOpen(true)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors"
-          >
-            <CreditCard size={15} className="text-gray-400 shrink-0" />
-            <span>내 명함</span>
-          </button>
-          <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors"
           >
@@ -164,7 +153,6 @@ export default function Sidebar({ open, onClose, onSearchOpen }: Props) {
           </button>
         </div>
 
-        {cardOpen && <MyCardModal onClose={() => setCardOpen(false)} />}
       </aside>
     </>
   )
