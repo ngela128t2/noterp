@@ -231,8 +231,8 @@ export default function MemoPage() {
       step = 'memos_insert'
       const { data: memoRow, error: memoError } = await supabase.from('memos').insert({
         user_id: user.id,
-        raw_text: rawText,
-        parsed_result: parsed,
+        raw_text: rt,
+        parsed_result: ep,
         status: 'approved',
       }).select('id').single()
       if (memoError) throw memoError

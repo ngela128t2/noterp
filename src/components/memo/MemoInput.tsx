@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useClients } from '../../hooks/useClients'
 import { useProjects } from '../../hooks/useProjects'
 import { parseMemoEdge as parseMemo } from '../../lib/edgeFunctions'
@@ -32,6 +32,11 @@ function getActiveToken(text: string, cursor: number): ActiveToken {
   return { symbol, query, start, end: cursor }
 }
 
+const isSpeechSupported =
+  typeof window !== 'undefined' &&
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  !!((window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition)
+
 export default function MemoInput({ onParsed, onLoading, initialClientId = '', initialProjectId = '' }: Props) {
   const { data: clients = [] } = useClients()
   const { data: projects = [] } = useProjects()
@@ -40,6 +45,51 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // 음성 인식
+  const [listening, setListening] = useState(false)
+  const [interim, setInterim] = useState('')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null)
+
+  useEffect(() => {
+    return () => { recognitionRef.current?.abort() }
+  }, [])
+
+  const toggleListening = () => {
+    if (listening) {
+      recognitionRef.current?.stop()
+      return
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
+    if (!SR) return
+    const rec = new SR()
+    rec.lang = 'ko-KR'
+    rec.continuous = true
+    rec.interimResults = true
+
+    rec.onstart = () => setListening(true)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      let finalChunk = ''
+      let interimChunk = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript
+        if (e.results[i].isFinal) finalChunk += t
+        else interimChunk += t
+      }
+      if (finalChunk) setText(prev => prev ? `${prev} ${finalChunk}` : finalChunk)
+      setInterim(interimChunk)
+    }
+
+    rec.onerror = () => { setListening(false); setInterim('') }
+    rec.onend   = () => { setListening(false); setInterim('') }
+
+    recognitionRef.current = rec
+    rec.start()
+  }
 
   const [expanded, setExpanded] = useState(!!(initialClientId || initialProjectId))
   const [pickedClientId, setPickedClientId] = useState(initialClientId)
@@ -137,11 +187,26 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
     <div className="bg-white rounded-xl border border-gray-200 p-5">
       <div className="flex items-center justify-between mb-3">
         <label className="text-sm font-semibold text-gray-700">메모 입력</label>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {isSpeechSupported && (
+            <button
+              type="button"
+              onClick={toggleListening}
+              title={listening ? '음성 인식 중지' : '음성으로 입력'}
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                listening
+                  ? 'bg-red-50 text-red-500 border border-red-200'
+                  : 'text-gray-400 hover:text-indigo-600 border border-transparent hover:border-gray-200'
+              }`}
+            >
+              <span className={listening ? 'animate-pulse' : ''}>🎤</span>
+              <span className="hidden sm:inline">{listening ? '인식 중...' : '음성'}</span>
+            </button>
+          )}
           <button type="button" onClick={() => setExpanded(v => !v)} className="text-xs text-gray-400 hover:text-indigo-600 transition-colors">
             {expanded ? '접기' : '📧 이메일/긴 텍스트'}
           </button>
-          <span className="text-xs text-gray-400">Enter 실행 · Shift+Enter 줄바꿈</span>
+          <span className="text-xs text-gray-400 hidden sm:inline">Enter 실행 · Shift+Enter 줄바꿈</span>
         </div>
       </div>
 
@@ -160,6 +225,11 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
             : `예) #[중소회계법인] /감사보고서 오늘 오전10시 미팅\n예) * 오전10시 1차미팅  * 오후3시 내부검토`}
           className="w-full resize-none text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         />
+        {interim && (
+          <p className="absolute bottom-2 left-3 right-3 text-sm text-gray-300 pointer-events-none truncate">
+            {interim}
+          </p>
+        )}
 
         {activeToken && suggestions.length > 0 && (
           <div className="absolute left-3 right-3 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">

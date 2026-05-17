@@ -264,40 +264,6 @@ export default function Dashboard() {
             )}
           </section>
 
-          {/* ② Open Loops — SECONDARY: 가볍게 */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold flex items-center justify-center shrink-0">2</span>
-                <h2 className="text-sm font-medium text-gray-600">흐름이 멈춘 업무</h2>
-                <span className="text-[10px] text-gray-400">Open Loops</span>
-              </div>
-              <button onClick={() => navigate('/todos')} className="text-xs text-gray-400 hover:text-indigo-500">전체 →</button>
-            </div>
-            {openLoops.length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-100 px-4 py-4 text-center">
-                <p className="text-sm text-gray-400">멈춘 업무가 없습니다</p>
-              </div>
-            ) : (
-              <div className="bg-white rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
-                {openLoops.map(loop => (
-                  <OpenLoopRow
-                    key={loop.id}
-                    loop={loop}
-                    onMemo={() => navigate('/memo', {
-                      state: loop.clientId
-                        ? { clientId: loop.clientId }
-                        : { projectId: loop.projectId }
-                    })}
-                    onComplete={() => toggleTodo.mutate({ id: loop.id, completed: true })}
-                    onSnooze={() => snoozeTodo.mutate({ id: loop.id, days: 7 })}
-                    onNavigate={() => goLoop(loop)}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-
           {/* 오늘 일정 */}
           <section>
             <div className="flex items-center justify-between mb-3">
@@ -327,6 +293,40 @@ export default function Dashboard() {
                         : { projectId: event.project_id }
                     })}
                     onComplete={() => completeEvent.mutate(event.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ② Open Loops — SECONDARY: 가볍게 */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold flex items-center justify-center shrink-0">2</span>
+                <h2 className="text-sm font-medium text-gray-600">흐름이 멈춘 업무</h2>
+                <span className="text-[10px] text-gray-400">Open Loops</span>
+              </div>
+              <button onClick={() => navigate('/todos')} className="text-xs text-gray-400 hover:text-indigo-500">전체 →</button>
+            </div>
+            {openLoops.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-100 px-4 py-4 text-center">
+                <p className="text-sm text-gray-400">멈춘 업무가 없습니다</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                {openLoops.map(loop => (
+                  <OpenLoopRow
+                    key={loop.id}
+                    loop={loop}
+                    onMemo={() => navigate('/memo', {
+                      state: loop.clientId
+                        ? { clientId: loop.clientId }
+                        : { projectId: loop.projectId }
+                    })}
+                    onComplete={() => toggleTodo.mutate({ id: loop.id, completed: true })}
+                    onSnooze={() => snoozeTodo.mutate({ id: loop.id, days: 7 })}
+                    onNavigate={() => goLoop(loop)}
                   />
                 ))}
               </div>

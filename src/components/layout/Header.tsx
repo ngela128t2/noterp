@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Menu } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { Menu, UserCircle } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 interface Props {
   title: string
@@ -8,14 +7,6 @@ interface Props {
 }
 
 export default function Header({ title, onMenuClick }: Props) {
-  const [userEmail, setUserEmail] = useState<string | null>(null)
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUserEmail(user?.email ?? null)
-    })
-  }, [])
-
   return (
     <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 lg:sticky lg:top-0 z-30">
       {/* 모바일 햄버거 */}
@@ -36,18 +27,10 @@ export default function Header({ title, onMenuClick }: Props) {
         Note everything, Not just ERP.
       </span>
 
-      {/* 모바일: 사용자 ID + 로그아웃 */}
-      <div className="ml-auto lg:hidden flex items-center gap-2">
-        {userEmail && (
-          <span className="text-[10px] text-gray-400 max-w-[110px] truncate">{userEmail}</span>
-        )}
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="text-xs text-gray-400 hover:text-gray-600 border border-gray-200 px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-        >
-          로그아웃
-        </button>
-      </div>
+      {/* 모바일: 프로필 아이콘 */}
+      <Link to="/profile" className="ml-auto lg:hidden p-1 text-gray-400 hover:text-indigo-600 transition-colors">
+        <UserCircle size={22} />
+      </Link>
     </header>
   )
 }

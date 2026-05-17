@@ -22,6 +22,8 @@ import TaxIntakePage from './pages/TaxIntakePage'
 import TaxIntakeNewPage from './pages/TaxIntakeNewPage'
 import TaxIntakeDetailPage from './pages/TaxIntakeDetailPage'
 import CalendarPage from './pages/CalendarPage'
+import ProfilePage from './pages/ProfilePage'
+import AuthCallbackPage from './pages/AuthCallbackPage'
 
 // #6: staleTime 5분 — 포커스마다 refetch 방지
 const queryClient = new QueryClient({
@@ -67,6 +69,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={session ? <Navigate to="/" replace /> : <LoginPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route
             path="/"
             element={
@@ -91,6 +94,7 @@ export default function App() {
             <Route path="tax/intake/new" element={<TaxIntakeNewPage />} />
             <Route path="tax/intake/:id" element={<TaxIntakeDetailPage />} />
             <Route path="tax/client/:id" element={<TaxClientPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
         </Routes>
       </BrowserRouter>

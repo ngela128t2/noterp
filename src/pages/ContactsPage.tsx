@@ -55,7 +55,7 @@ function normalizeText(value: string | null | undefined) {
 }
 
 export default function ContactsPage() {
-  const { data: contacts = [], isLoading } = useContacts()
+  const { data: contacts = [], isLoading, isError } = useContacts()
   const { data: clients = [] } = useClients()
   const { data: projects = [] } = useProjects()
   const createContact = useCreateContact()
@@ -229,9 +229,8 @@ export default function ContactsPage() {
         tags: (info.tags?.length ? info.tags : ['명함']).join(', '),
       })
       setModal('create')
-    } catch (error) {
-      console.error('명함 OCR 실패:', error)
-      alert('명함 정보를 읽지 못했습니다. 이미지를 다시 확인해 주세요.')
+    } catch {
+      setSaveError('명함 정보를 읽지 못했습니다. 이미지를 다시 확인해 주세요.')
     } finally {
       setOcring(false)
     }
@@ -382,6 +381,8 @@ export default function ContactsPage() {
 
       {isLoading ? (
         <p className="text-sm text-gray-400">불러오는 중...</p>
+      ) : isError ? (
+        <p className="text-sm text-red-400">데이터를 불러오지 못했습니다. 새로고침해 주세요.</p>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
           <p className="text-gray-400 text-sm mb-3">조건에 맞는 연락처가 없습니다.</p>

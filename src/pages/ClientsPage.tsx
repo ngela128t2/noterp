@@ -19,7 +19,7 @@ async function fileToBase64(file: File): Promise<string> {
 }
 
 export default function ClientsPage() {
-  const { data: clients = [], isLoading } = useClients()
+  const { data: clients = [], isLoading, isError } = useClients()
   const createClient = useCreateClient()
   const updateClient = useUpdateClient()
   const deleteClient = useDeleteClient()
@@ -31,6 +31,8 @@ export default function ClientsPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('전체')
   const [ocring, setOcring] = useState(false)
+  const [ocrError, setOcrError] = useState<string | null>(null)
+  const [mutateError, setMutateError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const filtered = clients.filter(client => {
@@ -57,28 +59,29 @@ export default function ClientsPage() {
   }).sort((a, b) => Number(b.is_pinned ?? false) - Number(a.is_pinned ?? false))
 
   const handleSave = (data: Omit<Client, 'id' | 'created_at' | 'user_id' | 'code'>) => {
+    setMutateError(null)
     if (modal === 'create') {
       createClient.mutate(data as Omit<Client, 'id' | 'created_at'>, {
-        onSuccess: () => {
-          setModal(null)
-          setOcrInitial(undefined)
-        },
+        onSuccess: () => { setModal(null); setOcrInitial(undefined) },
+        onError: (err) => setMutateError(err instanceof Error ? err.message : '저장에 실패했습니다.'),
       })
     } else if (modal && typeof modal === 'object') {
       updateClient.mutate({ id: modal.id, ...data }, {
         onSuccess: () => setModal(null),
+        onError: (err) => setMutateError(err instanceof Error ? err.message : '수정에 실패했습니다.'),
       })
     }
   }
 
   const handleOcr = useCallback(async (file: File) => {
     setOcring(true)
+    setOcrError(null)
     try {
       const base64 = await fileToBase64(file)
       const info = await extractFromBusinessLicense(base64, file.type)
       setOcrInitial(info as Partial<Client>)
-    } catch (err) {
-      console.error('OCR 실패:', err)
+    } catch {
+      setOcrError('사업자등록증 인식에 실패했습니다. 직접 입력해 주세요.')
       setOcrInitial(undefined)
     } finally {
       setOcring(false)
@@ -152,6 +155,12 @@ export default function ClientsPage() {
           </div>
         </div>
 
+        {(ocrError || mutateError) && (
+          <div className="mb-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-center justify-between">
+            <span>{ocrError ?? mutateError}</span>
+            <button onClick={() => { setOcrError(null); setMutateError(null) }} className="ml-3 text-red-400 hover:text-red-600">✕</button>
+          </div>
+        )}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="table-fixed text-sm min-w-[1080px] w-full">
@@ -174,6 +183,10 @@ export default function ClientsPage() {
                 {isLoading ? (
                   <tr>
                     <td colSpan={11} className="px-4 py-8 text-center text-gray-400 text-sm">불러오는 중...</td>
+                  </tr>
+                ) : isError ? (
+                  <tr>
+                    <td colSpan={11} className="px-4 py-8 text-center text-red-400 text-sm">데이터를 불러오지 못했습니다. 새로고침해 주세요.</td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>

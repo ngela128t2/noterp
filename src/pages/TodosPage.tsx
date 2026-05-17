@@ -30,7 +30,7 @@ function daysStale(dateStr: string | null): number {
 
 export default function TodosPage() {
   const navigate = useNavigate()
-  const { data: todos = [], isLoading } = useTodos()
+  const { data: todos = [], isLoading, isError } = useTodos()
   const { data: clients = [] } = useClients()
   const { data: openLoops = [] } = useOpenLoops()
   const createTodo = useCreateTodo()
@@ -143,6 +143,8 @@ export default function TodosPage() {
 
       {isLoading ? (
         <p className="text-sm text-gray-400">불러오는 중...</p>
+      ) : isError ? (
+        <p className="text-sm text-red-400">데이터를 불러오지 못했습니다. 새로고침해 주세요.</p>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-dashed border-gray-200 p-10 text-center">
           <p className="text-gray-400 text-sm">Follow-up 항목이 없습니다.</p>

@@ -61,7 +61,7 @@ function matchesPeriod(project: ProjectWithClient, startFilter: string, endFilte
 }
 
 export default function ProjectsPage() {
-  const { data: projects, isLoading } = useProjects()
+  const { data: projects, isLoading, isError } = useProjects()
   const { data: clients = [] } = useClients()
   const createProject = useCreateProject()
   const updateProject = useUpdateProject()
@@ -254,6 +254,8 @@ export default function ProjectsPage() {
 
       {isLoading ? (
         <p className="text-sm text-gray-400">불러오는 중...</p>
+      ) : isError ? (
+        <p className="text-sm text-red-400">데이터를 불러오지 못했습니다. 새로고침해 주세요.</p>
       ) : (projects ?? []).length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-10 text-center shadow-sm">
           <p className="text-gray-400 text-sm mb-3">등록된 프로젝트가 없습니다.</p>

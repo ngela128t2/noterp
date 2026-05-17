@@ -27,7 +27,7 @@ const EMPTY: FormState = { title: '', date: '', time: '', location: '', client_i
 const inp = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500'
 
 export default function CalendarPage() {
-  const { data: events = [], isLoading } = useCalendarEvents()
+  const { data: events = [], isLoading, isError } = useCalendarEvents()
   const { data: clients = [] } = useClients()
   const { data: projects = [] } = useProjects()
   const createEvent = useCreateCalendarEvent()
@@ -121,6 +121,7 @@ export default function CalendarPage() {
   }
 
   if (isLoading) return <div className="p-6 text-sm text-gray-400">불러오는 중...</div>
+  if (isError) return <div className="p-6 text-sm text-red-400">데이터를 불러오지 못했습니다. 새로고침해 주세요.</div>
 
   return (
     <div className="p-6">

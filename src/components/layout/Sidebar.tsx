@@ -14,6 +14,7 @@ import {
   CreditCard,
   LogOut,
   Calculator,
+  UserCircle,
 } from 'lucide-react'
 import { useReviewBadges } from '../../hooks/useReviewBadges'
 import { supabase } from '../../lib/supabase'
@@ -28,6 +29,7 @@ const navItems = [
   { to: '/todos',     Icon: RefreshCw,    label: 'Follow-up' },
   { to: '/deadlines', Icon: Clock,        label: '마감 기한' },
   { to: '/contacts',  Icon: Users,        label: 'N-CRM',    badgeKey: 'contacts' as const },
+  { to: '/profile',   Icon: UserCircle,   label: '내 정보' },
 ]
 
 interface Props {

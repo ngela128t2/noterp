@@ -18,6 +18,7 @@ const PAGE_TITLE: Record<string, string> = {
   '/deadlines': '마감 기한',
   '/tax': '세무대리',
   '/settings': '설정',
+  '/profile': '내 정보 / 계정설정',
 }
 
 export default function Layout() {
