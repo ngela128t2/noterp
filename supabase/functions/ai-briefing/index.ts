@@ -1,4 +1,5 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
+import { getUserFromRequest, logTokenUsage } from '../_shared/usage.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,10 +18,12 @@ Deno.serve(async (req) => {
       ? todayEvents.map((e: any) => `${e.time ? e.time.slice(0, 5) + ' ' : ''}${e.title}${e.clientName ? `(${e.clientName})` : ''}`).join(', ')
       : '없음'
 
+    const user = await getUserFromRequest(req).catch(() => null)
     const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
+    const MODEL = 'claude-haiku-4-5-20251001'
 
     const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: MODEL,
       max_tokens: 200,
       messages: [{
         role: 'user',
@@ -39,6 +42,18 @@ Deno.serve(async (req) => {
 형식: "[마커] 한 줄 행동 중심 텍스트"`,
       }],
     })
+
+    if (user && message.usage) {
+      logTokenUsage({
+        userId: user.id,
+        email: user.email,
+        provider: 'anthropic',
+        model: MODEL,
+        feature: 'today_briefing',
+        inputTokens: message.usage.input_tokens ?? 0,
+        outputTokens: message.usage.output_tokens ?? 0,
+      }).catch(err => console.error('[ai-briefing] usage log fail:', err))
+    }
 
     const content = message.content[0]
     if (content.type !== 'text') throw new Error('Unexpected response')

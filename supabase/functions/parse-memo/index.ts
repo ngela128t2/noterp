@@ -1,4 +1,5 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
+import { getUserFromRequest, logTokenUsage } from '../_shared/usage.ts'
 
 const SYSTEM_PROMPT = `당신은 회계법인 업무 메모를 분석하는 AI 에이전트입니다.
 자유형 텍스트에서 일정·할 일·거래처·프로젝트·연락처를 추출해 JSON으로 반환하세요.
@@ -130,15 +131,35 @@ Deno.serve(async (req) => {
     `\n메모:\n${text}`,
   ].filter(Boolean).join('\n')
 
+  // 토큰 사용량 기록을 위해 사용자 정보 추출 (실패해도 호출은 계속 진행)
+  const user = await getUserFromRequest(req).catch(() => null)
+
   let raw: string
   try {
     const client = new Anthropic({ apiKey })
+    const MODEL = 'claude-haiku-4-5-20251001'
     const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: MODEL,
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     })
+    // 토큰 사용량 기록 (실패해도 응답에는 영향 없음)
+    if (user && message.usage) {
+      logTokenUsage({
+        userId: user.id,
+        email: user.email,
+        provider: 'anthropic',
+        model: MODEL,
+        feature: 'parse_memo',
+        inputTokens: message.usage.input_tokens ?? 0,
+        outputTokens: message.usage.output_tokens ?? 0,
+        metadata: {
+          cache_creation: message.usage.cache_creation_input_tokens ?? 0,
+          cache_read: message.usage.cache_read_input_tokens ?? 0,
+        },
+      }).catch(err => console.error('[parse-memo] usage log fail:', err))
+    }
     const content = message.content[0]
     if (content.type !== 'text') {
       return errResp('claude_response', `예상치 못한 응답 타입: ${content.type}`)

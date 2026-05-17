@@ -5,11 +5,17 @@ export type Profile = {
   id: string
   full_name: string | null
   company: string | null
-  role: string | null
+  role: string | null            // 직책 (job title)
   phone: string | null
   email: string
   avatar_url: string | null
   provider: string | null
+  app_role: 'admin' | 'user'     // 권한 — admin이면 /admin 접근 가능
+}
+
+export function useIsAdmin(): boolean {
+  const { data: profile } = useProfile()
+  return profile?.app_role === 'admin'
 }
 
 async function getCurrentUser() {
@@ -49,6 +55,7 @@ export function useProfile() {
         phone:     norm(meta.phone),
         avatar_url: avatar,
         provider,
+        app_role:  'user',
       }
 
       // 2차 — profiles 테이블에 저장된 값이 있으면 덮어쓰기 (실패하면 base 그대로)
@@ -63,6 +70,7 @@ export function useProfile() {
           base.company   = norm(data.company)   || base.company
           base.role      = norm(data.role)      || base.role
           base.phone     = norm(data.phone)     || base.phone
+          if (data.app_role === 'admin') base.app_role = 'admin'
         }
       } catch (err) {
         console.warn('[useProfile] profiles 테이블 조회 실패. auth metadata만 사용:', err)

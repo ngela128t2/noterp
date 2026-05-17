@@ -72,7 +72,7 @@ SELECT
   ms.memo_id,
   p.user_id,
   ms.created_at,
-  ms.due_date           AS extra,
+  ms.due_date::TEXT     AS extra,
   NULL::TEXT            AS meta_type
 FROM milestones ms
 JOIN projects p ON p.id = ms.project_id

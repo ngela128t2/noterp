@@ -19,6 +19,7 @@ const PAGE_TITLE: Record<string, string> = {
   '/tax': '세무대리',
   '/settings': '설정',
   '/profile': '내 정보 / 계정설정',
+  '/admin': '관리자 · AI 사용량',
 }
 
 export default function Layout() {

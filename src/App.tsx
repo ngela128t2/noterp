@@ -23,6 +23,7 @@ import TaxIntakeNewPage from './pages/TaxIntakeNewPage'
 import TaxIntakeDetailPage from './pages/TaxIntakeDetailPage'
 import CalendarPage from './pages/CalendarPage'
 import ProfilePage from './pages/ProfilePage'
+import AdminPage from './pages/AdminPage'
 import AuthCallbackPage from './pages/AuthCallbackPage'
 
 // #6: staleTime 5분 — 포커스마다 refetch 방지
@@ -95,6 +96,8 @@ export default function App() {
             <Route path="tax/intake/:id" element={<TaxIntakeDetailPage />} />
             <Route path="tax/client/:id" element={<TaxClientPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            {/* AdminPage 자체에서 권한 체크 후 비-admin은 / 으로 리다이렉트 */}
+            <Route path="admin" element={<AdminPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

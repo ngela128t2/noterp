@@ -12,8 +12,10 @@ import {
   LogOut,
   Calculator,
   Repeat,
+  Shield,
 } from 'lucide-react'
 import { useReviewBadges } from '../../hooks/useReviewBadges'
+import { useIsAdmin } from '../../hooks/useProfile'
 import { supabase } from '../../lib/supabase'
 
 // 핵심 — 항상 상단 노출
@@ -40,6 +42,7 @@ interface Props {
 
 export default function Sidebar({ open, onClose, onSearchOpen }: Props) {
   const { data: badges } = useReviewBadges()
+  const isAdmin = useIsAdmin()
 
   function NavItem({ to, Icon, label, badgeKey, secondary = false }: {
     to: string; Icon: React.ElementType; label: string
@@ -125,6 +128,28 @@ export default function Sidebar({ open, onClose, onSearchOpen }: Props) {
 
           {/* Secondary */}
           {secondaryNav.map(item => <NavItem key={item.to} {...item} secondary />)}
+
+          {/* Admin — admin 권한 시에만 노출 */}
+          {isAdmin && (
+            <>
+              <div className="my-2 border-t border-gray-100" />
+              <NavLink
+                to="/admin"
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                    isActive
+                      ? 'bg-indigo-50 text-indigo-700 font-medium'
+                      : 'text-gray-500 hover:bg-indigo-50/50 hover:text-indigo-600'
+                  }`
+                }
+              >
+                <Shield size={13} className="shrink-0 text-indigo-400" />
+                <span className="flex-1">관리자</span>
+                <span className="text-[9px] px-1 py-0.5 bg-indigo-100 text-indigo-600 rounded">ADMIN</span>
+              </NavLink>
+            </>
+          )}
         </nav>
 
         {/* 하단 */}

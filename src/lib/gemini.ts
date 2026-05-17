@@ -1,8 +1,29 @@
 import { GoogleGenAI } from '@google/genai'
 import { supabase } from './supabase'
+import { logClientTokenUsage } from './tokenUsage'
 import type { Client } from '../types'
 
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY })
+const GEMINI_MODEL = 'gemini-2.5-flash'
+
+// Gemini 응답에서 usage 추출 후 기록 (fire-and-forget)
+function trackGeminiUsage(
+  feature: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  response: any,
+  metadata?: Record<string, unknown>,
+) {
+  const u = response?.usageMetadata
+  if (!u) return
+  logClientTokenUsage({
+    provider: 'gemini',
+    model: GEMINI_MODEL,
+    feature,
+    inputTokens: u.promptTokenCount ?? 0,
+    outputTokens: u.candidatesTokenCount ?? 0,
+    metadata,
+  })
+}
 
 // ── 거래처 매칭 에이전트 ──────────────────────────────────────────────
 
@@ -47,7 +68,7 @@ export async function extractFromBusinessCard(
 - 이름이 불명확하면 가장 사람 이름에 가까운 값을 사용`
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: GEMINI_MODEL,
     contents: [
       {
         role: 'user',
@@ -58,6 +79,7 @@ export async function extractFromBusinessCard(
       },
     ],
   })
+  trackGeminiUsage('business_card_ocr', response)
 
   const raw = response.text ?? ''
   const jsonMatch = raw.match(/\{[\s\S]*\}/)
@@ -87,9 +109,10 @@ ${existingList || '(없음)'}
 {"matched_id":null,"matched_name":null,"is_new":true,"confidence":"high","suggested_name":"거래처명"}`
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: GEMINI_MODEL,
     contents: prompt,
   })
+  trackGeminiUsage('client_match', response)
   return JSON.parse(response.text ?? '{}') as ClientMatchResult
 }
 
@@ -151,9 +174,10 @@ export async function analyzeIntakeDocuments(
   })
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: GEMINI_MODEL,
     contents: [{ role: 'user', parts }],
   })
+  trackGeminiUsage('tax_intake_analyze', response, { file_count: files.length })
 
   const raw = response.text ?? ''
   const jsonMatch = raw.match(/\{[\s\S]*\}/)
@@ -190,7 +214,7 @@ export async function extractFromBusinessLicense(
 }`
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: GEMINI_MODEL,
     contents: [
       {
         role: 'user',
@@ -201,6 +225,7 @@ export async function extractFromBusinessLicense(
       },
     ],
   })
+  trackGeminiUsage('business_license_ocr', response)
 
   const raw = response.text ?? ''
   const jsonMatch = raw.match(/\{[\s\S]*\}/)
