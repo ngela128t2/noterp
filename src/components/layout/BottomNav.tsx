@@ -16,7 +16,6 @@ const moreItems = [
   { to: '/todos',     label: 'Follow-up', emoji: '✓' },
   { to: '/deadlines', label: '마감 기한',  emoji: '⏰' },
   { to: '/habits',    label: '습관 루틴',  emoji: '🔁' },
-  { to: '/profile',   label: '내 정보',   emoji: '👤' },
 ]
 
 export default function BottomNav() {

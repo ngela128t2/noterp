@@ -11,7 +11,6 @@ import {
   Search,
   LogOut,
   Calculator,
-  UserCircle,
   Repeat,
 } from 'lucide-react'
 import { useReviewBadges } from '../../hooks/useReviewBadges'
@@ -31,7 +30,6 @@ const secondaryNav = [
   { to: '/todos',     Icon: RefreshCw,    label: 'Follow-up' },
   { to: '/deadlines', Icon: Clock,        label: '마감' },
   { to: '/habits',    Icon: Repeat,       label: '습관' },
-  { to: '/profile',   Icon: UserCircle,   label: '내 정보' },
 ]
 
 interface Props {
