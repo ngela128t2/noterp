@@ -1,21 +1,22 @@
-import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { useReviewBadges } from '../../hooks/useReviewBadges'
 
 const mainItems = [
   { to: '/',         short: '홈' },
+  { to: '/memo',     short: '메모' },
   { to: '/clients',  short: '거래처', badgeKey: 'clients'  as const },
   { to: '/projects', short: '프로젝트', badgeKey: 'projects' as const },
-  { to: '/contacts', short: 'N-CRM',  badgeKey: 'contacts' as const },
   { to: '/tax',      short: '세무대리' },
 ]
 
 const moreItems = [
-  { to: '/habits',    label: '습관 루틴', emoji: '🔁' },
-  { to: '/calendar',  label: '일정',     emoji: '📅' },
+  { to: '/contacts',  label: 'N-CRM',    emoji: '👥' },
+  { to: '/calendar',  label: '캘린더',    emoji: '📅' },
   { to: '/todos',     label: 'Follow-up', emoji: '✓' },
-  { to: '/deadlines', label: '마감 기한', emoji: '⏰' },
-  { to: '/memo',      label: '메모 입력', emoji: '✏️' },
+  { to: '/deadlines', label: '마감 기한',  emoji: '⏰' },
+  { to: '/habits',    label: '습관 루틴',  emoji: '🔁' },
+  { to: '/profile',   label: '내 정보',   emoji: '👤' },
 ]
 
 export default function BottomNav() {
@@ -25,7 +26,6 @@ export default function BottomNav() {
 
   return (
     <>
-      {/* 더보기 슬라이드업 */}
       {showMore && (
         <>
           <div className="lg:hidden fixed inset-0 z-40" onClick={() => setShowMore(false)} />
@@ -64,7 +64,7 @@ export default function BottomNav() {
               >
                 {({ isActive }) => (
                   <>
-                    {showBadge && <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-red-500" />}
+                    {showBadge && <span className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-red-500" />}
                     <span className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-indigo-600' : 'bg-gray-300'}`} />
                     <span className="leading-none whitespace-nowrap">{item.short}</span>
                   </>
@@ -72,7 +72,6 @@ export default function BottomNav() {
               </NavLink>
             )
           })}
-          {/* 더보기 버튼 */}
           <button
             onClick={() => setShowMore(v => !v)}
             className={`flex flex-col items-center justify-center gap-1 text-[10px] transition-colors ${showMore ? 'text-indigo-600' : 'text-gray-400'}`}
