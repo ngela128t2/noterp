@@ -40,6 +40,14 @@ function MemoCard({ memo, derived }: StreamGroup) {
   const visible = derived.slice(0, 4)
   const hidden = derived.length - visible.length
 
+  // 파생 항목들이 공통으로 연결된 거래처/프로젝트 추출
+  const connectedClients = Array.from(
+    new Set(derived.map(d => d.client_name).filter((n): n is string => !!n))
+  )
+  const connectedProjects = Array.from(
+    new Set(derived.map(d => d.project_name).filter((n): n is string => !!n))
+  )
+
   return (
     <button
       onClick={() => navigateToItem(memo, navigate)}
@@ -57,8 +65,27 @@ function MemoCard({ memo, derived }: StreamGroup) {
       </div>
 
       {/* 파생 항목 — 작고 흐리게 */}
-      {derived.length > 0 ? (
+      {(connectedClients.length > 0 || connectedProjects.length > 0 || derived.length > 0) && (
         <div className="pl-7 mt-2 space-y-0.5">
+          {/* 거래처 연결 — 최상단 */}
+          {connectedClients.map(name => (
+            <div key={`c-${name}`} className="flex items-baseline gap-1.5 text-xs">
+              <span className="text-gray-300">↳</span>
+              <span className="text-gray-500">거래처</span>
+              <span className="text-indigo-500 font-medium truncate">· {name}</span>
+            </div>
+          ))}
+
+          {/* 프로젝트 연결 */}
+          {connectedProjects.map(name => (
+            <div key={`p-${name}`} className="flex items-baseline gap-1.5 text-xs">
+              <span className="text-gray-300">↳</span>
+              <span className="text-gray-500">프로젝트</span>
+              <span className="text-purple-500 font-medium truncate">· {name}</span>
+            </div>
+          ))}
+
+          {/* 파생 항목 (일정/할일/마일스톤) */}
           {visible.map(d => (
             <div key={`${d.stream_type}-${d.id}`} className="flex items-baseline gap-1.5 text-xs text-gray-400">
               <span className="text-gray-300">↳</span>
@@ -70,7 +97,8 @@ function MemoCard({ memo, derived }: StreamGroup) {
             <div className="text-[11px] text-gray-300 pl-3">↳ 외 {hidden}건 더</div>
           )}
         </div>
-      ) : (
+      )}
+      {derived.length === 0 && connectedClients.length === 0 && connectedProjects.length === 0 && (
         <div className="pl-7 mt-1.5 text-[11px] text-gray-300">— 파생 항목 없음</div>
       )}
     </button>

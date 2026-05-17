@@ -267,6 +267,7 @@ export default function MemoPage() {
         if (!seenRef.has(key)) { seenRef.add(key); referencedClientNames.push(name) }
       }
 
+      // ① 명시적(#[name])으로 지정된 거래처 — 없으면 자동 생성
       for (const name of explicitClientNames) {
         const key = normalizeMemoName(name)
         if (clientByName.has(key)) continue
@@ -279,6 +280,34 @@ export default function MemoPage() {
         if (data) clientByName.set(normalizeMemoName(data.name), data as ClientRow)
       }
 
+      // ② AI가 식별한 신규 거래처도 자동 생성 (이전에는 SKIP되어 client_id 연결이 끊겼음)
+      //    - ep.clients[].is_new === true 인 항목
+      //    - events/projects.client_name 중 신규
+      //    needs_review: true 로 마크하여 사용자가 워크스페이스에서 확인/병합 가능
+      const newClientCandidates = new Set<string>()
+      for (const c of (ep.clients ?? [])) {
+        if (c.name?.trim() && c.is_new) newClientCandidates.add(c.name.trim())
+      }
+      for (const name of referencedClientNames) {
+        if (!clientByName.has(normalizeMemoName(name))) newClientCandidates.add(name)
+      }
+      for (const name of newClientCandidates) {
+        const key = normalizeMemoName(name)
+        if (clientByName.has(key)) continue   // 위 ①에서 이미 생성된 경우 스킵
+        if (isDateOnlyTitle(name)) continue   // 날짜형 이름은 거래처가 아님
+        const { data, error } = await supabase
+          .from('clients')
+          .insert({ user_id: user.id, name, code: null, memo: appendMemo(null, rt), needs_review: true, source: 'memo_ai' })
+          .select('id, name, memo, needs_review, source')
+          .single()
+        if (error) {
+          console.warn('[clients_ai_insert] 실패:', error.message)
+          continue   // 부분 실패해도 계속 (UNIQUE 위반 등)
+        }
+        if (data) clientByName.set(normalizeMemoName(data.name), data as ClientRow)
+      }
+
+      // ③ 모든 referencedClientNames에 대해 거래처 메모 append (이제 신규도 포함됨)
       for (const name of referencedClientNames) {
         const existing = clientByName.get(normalizeMemoName(name))
         if (!existing) continue
@@ -382,7 +411,18 @@ export default function MemoPage() {
       const primaryProjectName = shortcuts.projects[0] ?? parsedExistingProjects[0]?.name ?? null
       const primaryProject = primaryProjectName ? projectByName.get(normalizeMemoName(primaryProjectName)) : null
       const primaryProjectId = primaryProject?.id ?? null
-      const primaryClientId = hintedClient?.id ?? primaryProject?.client_id ?? null
+      // 거래처 fallback 체인:
+      //   1) 명시(#[name])로 지정된 거래처
+      //   2) primary project의 client_id
+      //   3) AI가 events/projects/clients에서 식별한 첫 거래처
+      const firstReferencedClient = referencedClientNames
+        .map(n => clientByName.get(normalizeMemoName(n)))
+        .find(c => !!c) ?? null
+      const primaryClientId =
+        hintedClient?.id
+        ?? primaryProject?.client_id
+        ?? firstReferencedClient?.id
+        ?? null
 
       // 날짜 fallback 체인: shortcuts.dates → parsed milestones → primaryDueDate
       const bestDate = shortcuts.dates[0]

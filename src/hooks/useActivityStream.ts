@@ -9,7 +9,9 @@ export type StreamItem = {
   id: string
   title: string
   client_id: string | null
+  client_name: string | null
   project_id: string | null
+  project_name: string | null
   memo_id: string | null
   user_id: string
   created_at: string
