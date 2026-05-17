@@ -8,6 +8,8 @@ export type Profile = {
   role: string | null
   phone: string | null
   email: string
+  avatar_url: string | null
+  provider: string | null
 }
 
 async function getCurrentUser() {
@@ -28,13 +30,22 @@ export function useProfile() {
         .maybeSingle()
       if (error) throw error
       const meta = user.user_metadata ?? {}
+      // Google OAuth는 'name', 'full_name', 'given_name+family_name' 중 하나로 줍니다
+      const googleName = (meta.full_name as string)
+        ?? (meta.name as string)
+        ?? [meta.given_name, meta.family_name].filter(Boolean).join(' ')
+        ?? null
+      const avatar = (meta.avatar_url as string) ?? (meta.picture as string) ?? null
+      const provider = (user.app_metadata?.provider as string) ?? null
       return {
         id: user.id,
-        email: user.email ?? '',
-        full_name: data?.full_name ?? (meta.full_name as string) ?? null,
-        company:   data?.company   ?? (meta.company   as string) ?? null,
-        role:      data?.role      ?? (meta.role      as string) ?? null,
-        phone:     data?.phone     ?? (meta.phone     as string) ?? null,
+        email: user.email ?? (meta.email as string) ?? '',
+        full_name: data?.full_name ?? googleName ?? null,
+        company:   data?.company   ?? (meta.company as string) ?? null,
+        role:      data?.role      ?? (meta.role    as string) ?? null,
+        phone:     data?.phone     ?? (meta.phone   as string) ?? null,
+        avatar_url: avatar,
+        provider,
       }
     },
   })

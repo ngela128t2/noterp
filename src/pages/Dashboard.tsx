@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MiniCalendar from '../components/dashboard/MiniCalendar'
+import TodayFlow from '../components/dashboard/TodayFlow'
 import { getLocalDate, parseLocalDate } from '../lib/dateUtils'
 import { useCalendarEvents, useCompleteCalendarEvent } from '../hooks/useCalendarEvents'
 import { useDashboardStats } from '../hooks/useDashboard'
@@ -149,6 +150,9 @@ export default function Dashboard() {
           </span>
         )}
       </div>
+
+      {/* 오늘의 흐름 — activity_stream 기반 */}
+      <TodayFlow />
 
       {/* AI 브리핑 */}
       <div className={`rounded-xl border px-4 py-3 transition-all ${briefing ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-100 hover:border-indigo-200'}`}>

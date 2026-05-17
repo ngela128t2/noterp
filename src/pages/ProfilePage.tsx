@@ -124,6 +124,25 @@ function ProfileDisplay() {
 
   return (
     <SectionCard title="내 정보">
+      {/* 아바타 + 로그인 방식 */}
+      <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
+        {profile?.avatar_url ? (
+          <img src={profile.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover border border-gray-100" />
+        ) : (
+          <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-lg font-semibold">
+            {(profile?.full_name ?? profile?.email ?? '?').charAt(0).toUpperCase()}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-800 truncate">{profile?.full_name ?? profile?.email?.split('@')[0]}</p>
+          {profile?.provider && (
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {profile.provider === 'google' ? '🅖 Google 계정으로 로그인' : `${profile.provider} 계정으로 로그인`}
+            </p>
+          )}
+        </div>
+      </div>
+
       <div className="space-y-3">
         {rows.map(({ label, value }) => (
           <div key={label} className="flex items-center gap-4">
@@ -135,7 +154,7 @@ function ProfileDisplay() {
         ))}
       </div>
       <p className="text-xs text-gray-300 pt-1">
-        정보 수정은 사이드바 <span className="text-gray-400">내 명함</span>에서 가능합니다.
+        정보 수정은 아래 <span className="text-gray-400">내 명함</span>에서 가능합니다.
       </p>
     </SectionCard>
   )

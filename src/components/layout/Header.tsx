@@ -10,13 +10,17 @@ interface Props {
 
 export default function Header({ title, onMenuClick }: Props) {
   const [displayName, setDisplayName] = useState<string | null>(null)
+  const [avatar, setAvatar] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      const name = (user?.user_metadata?.full_name as string)
+      const meta = user?.user_metadata ?? {}
+      const name = (meta.full_name as string)
+        || (meta.name as string)
         || user?.email?.split('@')[0]
         || null
       setDisplayName(name)
+      setAvatar((meta.avatar_url as string) ?? (meta.picture as string) ?? null)
     })
   }, [])
 
@@ -49,7 +53,11 @@ export default function Header({ title, onMenuClick }: Props) {
             {displayName}
           </span>
         )}
-        <UserCircle size={22} className="shrink-0" />
+        {avatar ? (
+          <img src={avatar} alt="" className="w-6 h-6 rounded-full object-cover border border-gray-200 shrink-0" />
+        ) : (
+          <UserCircle size={22} className="shrink-0" />
+        )}
       </Link>
     </header>
   )
