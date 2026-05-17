@@ -100,7 +100,7 @@ async function writeActivityLog(input: {
   if (error) console.error('활동 로그 저장 오류:', error)
 }
 
-async function ensureMilestone(projectId: string, title: string, dueDate: string | null, cache: Map<string, MilestoneRow[]>) {
+async function ensureMilestone(projectId: string, title: string, dueDate: string | null, cache: Map<string, MilestoneRow[]>, memoId: string | null = null) {
   const cleanTitle = title.trim()
   if (!cleanTitle || isDateOnlyTitle(cleanTitle)) return  // 날짜형 제목 차단
 
@@ -120,7 +120,7 @@ async function ensureMilestone(projectId: string, title: string, dueDate: string
 
   const { data, error } = await supabase
     .from('milestones')
-    .insert({ project_id: projectId, title: cleanTitle, due_date: dueDate, completed: false })
+    .insert({ project_id: projectId, title: cleanTitle, due_date: dueDate, completed: false, memo_id: memoId })
     .select('id, title, due_date')
     .single()
   if (error) throw error
@@ -134,14 +134,15 @@ async function ensureMilestones(
   fallbackTitle: string,
   fallbackDate: string | null,
   cache: Map<string, MilestoneRow[]>,
+  memoId: string | null = null,
 ) {
   const arr = project.milestones?.filter(m => m.title.trim()) ?? []
   if (arr.length > 0) {
     for (const m of arr) {
-      await ensureMilestone(projectId, m.title, m.due_date, cache)
+      await ensureMilestone(projectId, m.title, m.due_date, cache, memoId)
     }
   } else {
-    await ensureMilestone(projectId, project.milestone || fallbackTitle, fallbackDate, cache)
+    await ensureMilestone(projectId, project.milestone || fallbackTitle, fallbackDate, cache, memoId)
   }
 }
 
@@ -342,7 +343,7 @@ export default function MemoPage() {
             (project.milestones?.filter(m => m.title.trim()).length ?? 0) > 0 ||
             (project.milestone != null && project.milestone.trim().length > 0)
           if (hasExplicitMilestone) {
-            await ensureMilestones(existing.id, project, memoTitle, primaryDueDate, milestoneCache)
+            await ensureMilestones(existing.id, project, memoTitle, primaryDueDate, milestoneCache, memoId)
           }
           continue
         }
@@ -365,6 +366,7 @@ export default function MemoPage() {
             memo: appendMemo(null, rt),
             needs_review: true,
             source: 'memo',
+            created_from_memo_id: memoId,
           })
           .select('id, name, memo, client_id')
           .single()
@@ -373,7 +375,7 @@ export default function MemoPage() {
           const row = data as ProjectRow
           projectByName.set(normalizeMemoName(row.name), row)
           touchedProjectIds.add(row.id)
-          await ensureMilestones(row.id, project, memoTitle, primaryDueDate, milestoneCache)
+          await ensureMilestones(row.id, project, memoTitle, primaryDueDate, milestoneCache, memoId)
         }
       }
 
@@ -425,6 +427,7 @@ export default function MemoPage() {
           location: event.location ?? null,
           client_id: eventClient?.id ?? primaryClientId,
           project_id: primaryProjectId,
+          memo_id: memoId,
         })
         if (error) throw error
       }
@@ -438,6 +441,7 @@ export default function MemoPage() {
           priority: (todo.priority as 'high' | 'medium' | 'low') ?? shortcuts.priorities[0] ?? 'medium',
           client_id: primaryClientId,
           project_id: primaryProjectId,
+          memo_id: memoId,
         })
         if (error) throw error
       }
@@ -480,6 +484,7 @@ export default function MemoPage() {
           tags: ['메모'],
           needs_review: true,
           source: 'memo',
+          memo_id: memoId,
         }).select('id, name, note').single()
         if (error) throw error
         if (data) contactByName.set(normalizeMemoName(data.name), data)

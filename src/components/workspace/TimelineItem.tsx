@@ -204,12 +204,20 @@ function WorkEventCard({ item }: { item: WorkItem }) {
             <span className={`text-[10px] px-1 py-0.5 rounded border ${SOURCE_BADGE[item.source]}`}>
               {SOURCE_LABEL[item.source]}
             </span>
+            {item.memoId && (
+              <span className="text-[10px] px-1 py-0.5 rounded border bg-amber-50 text-amber-600 border-amber-200" title="메모에서 생성됨">
+                📝
+              </span>
+            )}
           </div>
 
           {/* 상세 펼침 */}
           {expanded && (
             <div className="mt-2 pt-2 border-t border-gray-100 space-y-1 text-xs text-gray-500">
               {item.location && <p>📍 {item.location}</p>}
+              {item.memoId && (
+                <p className="text-[11px] text-amber-600">📝 메모에서 생성됨</p>
+              )}
               {item.rawMilestone && item.rawEvent && (
                 <p className="text-gray-400 text-[11px]">일정 + 마일스톤 연결됨</p>
               )}

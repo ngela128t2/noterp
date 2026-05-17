@@ -57,6 +57,7 @@ export interface Project {
   memo: string | null
   needs_review: boolean | null
   source: string | null
+  created_from_memo_id?: string | null
   created_at: string
 }
 
@@ -67,6 +68,7 @@ export interface Milestone {
   due_date: string | null
   time: string | null
   completed: boolean
+  memo_id?: string | null
   created_at: string
 }
 
@@ -79,6 +81,7 @@ export interface Todo {
   completed: boolean
   client_id: string | null
   project_id: string | null
+  memo_id?: string | null
   created_at: string
 }
 
@@ -91,6 +94,7 @@ export interface CalendarEvent {
   location: string | null
   client_id: string | null
   project_id: string | null
+  memo_id?: string | null
   completed: boolean
   completed_at: string | null
   created_at: string
@@ -106,6 +110,7 @@ export interface Contact {
   email: string | null
   client_id: string | null
   project_id: string | null
+  memo_id?: string | null
   tags: string[]
   note: string | null
   needs_review: boolean | null

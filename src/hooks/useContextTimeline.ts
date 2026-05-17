@@ -17,6 +17,7 @@ export type WorkItem = {
   source: 'event' | 'milestone' | 'todo'
   priority?: 'high' | 'medium' | 'low'
   projectId: string | null
+  memoId: string | null  // 원본 메모 추적
   rawEvent?: CalendarEvent
   rawMilestone?: Milestone
   rawTodo?: Todo
@@ -56,6 +57,7 @@ function buildWorkItems(
         completedAt: event.completed_at,
         source: 'event',
         projectId: event.project_id,
+        memoId: event.memo_id ?? match.memo_id ?? null,
         rawEvent: event,
         rawMilestone: match,
       })
@@ -70,6 +72,7 @@ function buildWorkItems(
         completedAt: event.completed_at,
         source: 'event',
         projectId: event.project_id,
+        memoId: event.memo_id ?? null,
         rawEvent: event,
       })
     }
@@ -130,6 +133,7 @@ function buildWorkItems(
       completedAt: null,
       source: 'milestone',
       projectId: m.project_id,
+      memoId: m.memo_id ?? null,
       rawMilestone: m,
     })
   }
@@ -157,6 +161,7 @@ function buildWorkItems(
       source: 'todo',
       priority: t.priority,
       projectId: t.project_id ?? null,
+      memoId: t.memo_id ?? null,
       rawTodo: t,
     })
   }
@@ -181,7 +186,7 @@ export function useClientTimeline(clientId: string) {
   return useMemo<TimelineItem[]>(() => {
     // useClientProjects의 inline milestones에 project_id를 수동으로 설정
     const allMilestones: Milestone[] = clientProjects.flatMap(p =>
-      (p.milestones ?? []).map(m => ({ ...m, project_id: p.id })),
+      (p.milestones ?? []).map(m => ({ ...m, project_id: p.id, memo_id: (m as Milestone).memo_id ?? null })),
     )
     const workItems = buildWorkItems(events as CalendarEvent[], allMilestones, todos as Todo[])
 
