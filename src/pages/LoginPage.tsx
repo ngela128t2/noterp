@@ -53,9 +53,7 @@ export default function LoginPage() {
 
     try {
       if (mode === 'login') {
-        console.log('[auth] login attempt:', email)
         const { error } = await supabase.auth.signInWithPassword({ email, password })
-        console.log('[auth] login result:', error ? `error: ${error.message}` : 'success')
         if (error) setError(toKoreanError(error.message))
 
       } else {
@@ -68,7 +66,6 @@ export default function LoginPage() {
           return
         }
 
-        console.log('[auth] signup attempt:', email)
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -82,7 +79,6 @@ export default function LoginPage() {
             },
           },
         })
-        console.log('[auth] signup result:', error ? `error: ${error.message}` : 'success')
 
         if (error) {
           setError(toKoreanError(error.message))

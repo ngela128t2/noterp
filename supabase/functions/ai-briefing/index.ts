@@ -1,24 +1,38 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
-import { getUserFromRequest, logTokenUsage } from '../_shared/usage.ts'
+import { getUserFromRequest, logTokenUsage, checkRateLimit } from '../_shared/usage.ts'
+import { corsHeaders as buildCors, errResp as buildErrResp, getAllowedOrigin } from '../_shared/common.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const MAX_EVENTS = 100
+const RATE_LIMIT = 20
+const RATE_WINDOW_SEC = 60
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin') ?? ''
+  const allowOrigin = getAllowedOrigin(origin)
+  const headers = buildCors(allowOrigin)
+  const errResp = (step: string, message: string, status = 500) =>
+    buildErrResp(headers, step, message, status)
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers })
   }
 
   try {
     const { date, todayEvents, weekEventCount, overdueCount, pendingCount, deadlineCount } = await req.json()
 
+    if (!Array.isArray(todayEvents) || todayEvents.length > MAX_EVENTS) {
+      return errResp('size_limit', '입력 데이터가 너무 큽니다.', 400)
+    }
+
+    const user = await getUserFromRequest(req).catch(() => null)
+    if (!user) return errResp('auth', '로그인이 필요합니다.', 401)
+    const rateLimited = await checkRateLimit(user.id, RATE_LIMIT, RATE_WINDOW_SEC)
+    if (rateLimited) return errResp('rate_limit', '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.', 429)
+
     const eventsText = todayEvents.length > 0
       ? todayEvents.map((e: any) => `${e.time ? e.time.slice(0, 5) + ' ' : ''}${e.title}${e.clientName ? `(${e.clientName})` : ''}`).join(', ')
       : '없음'
 
-    const user = await getUserFromRequest(req).catch(() => null)
     const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
     const MODEL = 'claude-haiku-4-5-20251001'
 
@@ -43,7 +57,7 @@ Deno.serve(async (req) => {
       }],
     })
 
-    if (user && message.usage) {
+    if (message.usage) {
       logTokenUsage({
         userId: user.id,
         email: user.email,
@@ -59,12 +73,10 @@ Deno.serve(async (req) => {
     if (content.type !== 'text') throw new Error('Unexpected response')
 
     return new Response(JSON.stringify({ text: content.text.trim() }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    console.error('[ai-briefing] error:', err)
+    return errResp('claude_api', 'AI 브리핑 생성 중 오류가 발생했습니다.')
   }
 })

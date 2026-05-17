@@ -1,5 +1,10 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
-import { getUserFromRequest, logTokenUsage } from '../_shared/usage.ts'
+import { getUserFromRequest, logTokenUsage, checkRateLimit } from '../_shared/usage.ts'
+import { corsHeaders as buildCors, errResp as buildErrResp, getAllowedOrigin } from '../_shared/common.ts'
+
+const MAX_INPUT_SIZE = 10_000  // 메모 최대 10,000자
+const RATE_LIMIT = 30          // 분당 30회
+const RATE_WINDOW_SEC = 60
 
 const SYSTEM_PROMPT = `당신은 회계법인 업무 메모를 분석하는 AI 에이전트입니다.
 자유형 텍스트에서 일정·할 일·거래처·프로젝트·연락처를 추출해 JSON으로 반환하세요.
@@ -74,22 +79,15 @@ tags: 2~5개 한국어 업무 키워드. 고유명사 제외.
   "raw_memo": string
 }`
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin') ?? ''
+  const allowOrigin = getAllowedOrigin(origin)
+  const headers = buildCors(allowOrigin)
+  const errResp = (step: string, message: string, status = 500) =>
+    buildErrResp(headers, step, message, status)
 
-function errResp(step: string, message: string, status = 500) {
-  console.error(`[parse-memo][${step}]`, message)
-  return new Response(
-    JSON.stringify({ error: message, step }),
-    { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-  )
-}
-
-Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers })
   }
 
   let text: string, today: string, shortcutText: string | undefined
@@ -105,6 +103,11 @@ Deno.serve(async (req) => {
     if (!text && !shortcutText) {
       return errResp('request_parse', '메모 텍스트가 비어 있습니다.', 400)
     }
+    // 입력 크기 제한 — 비용 폭주 방지
+    const totalLen = (text?.length ?? 0) + (shortcutText?.length ?? 0)
+    if (totalLen > MAX_INPUT_SIZE) {
+      return errResp('size_limit', `메모는 ${MAX_INPUT_SIZE.toLocaleString()}자 이하로 입력해주세요.`, 413)
+    }
   } catch (e) {
     return errResp('request_parse', `요청 파싱 실패: ${String(e)}`, 400)
   }
@@ -113,6 +116,12 @@ Deno.serve(async (req) => {
   if (!apiKey) {
     return errResp('env_check', 'ANTHROPIC_API_KEY가 설정되지 않았습니다.')
   }
+
+  // 사용자 인증 + Rate limit
+  const user = await getUserFromRequest(req).catch(() => null)
+  if (!user) return errResp('auth', '로그인이 필요합니다.', 401)
+  const rateLimited = await checkRateLimit(user.id, RATE_LIMIT, RATE_WINDOW_SEC)
+  if (rateLimited) return errResp('rate_limit', '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.', 429)
 
   // 기존 엔티티 컨텍스트 구성
   const entityContext = [
@@ -130,9 +139,6 @@ Deno.serve(async (req) => {
     entityContext,
     `\n메모:\n${text}`,
   ].filter(Boolean).join('\n')
-
-  // 토큰 사용량 기록을 위해 사용자 정보 추출 (실패해도 호출은 계속 진행)
-  const user = await getUserFromRequest(req).catch(() => null)
 
   let raw: string
   try {
@@ -181,6 +187,6 @@ Deno.serve(async (req) => {
   }
 
   return new Response(jsonMatch[0], {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...headers, 'Content-Type': 'application/json' },
   })
 })

@@ -21,6 +21,7 @@ type ActiveToken = {
 
 const hintClass = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium'
 const selCls = 'w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white'
+const MAX_MEMO_LENGTH = 10_000
 
 function getActiveToken(text: string, cursor: number): ActiveToken {
   const beforeCursor = text.slice(0, cursor)
@@ -112,7 +113,8 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
   }, [activeToken, clients, projects])
 
   const hasPickerContext = !!(pickedClientId || pickedProjectId || pickedDate || pickedTime)
-  const canRun = (text.trim().length > 0 || hasPickerContext) && !running
+  const overLimit = text.length > MAX_MEMO_LENGTH
+  const canRun = (text.trim().length > 0 || hasPickerContext) && !running && !overLimit
 
   const clearPickers = () => {
     setPickedClientId('')
@@ -192,6 +194,9 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
             {expanded ? '접기' : '긴 텍스트'}
           </button>
           <span className="text-xs text-gray-400 hidden sm:inline">Enter 실행 · Shift+Enter 줄바꿈</span>
+          <span className={`text-xs font-mono ${overLimit ? 'text-red-500' : text.length > MAX_MEMO_LENGTH * 0.8 ? 'text-amber-500' : 'text-gray-300'}`}>
+            {text.length.toLocaleString()}/{MAX_MEMO_LENGTH.toLocaleString()}
+          </span>
         </div>
       </div>
 
@@ -205,10 +210,13 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
           onKeyUp={event => updateCursor(event.currentTarget)}
           onKeyDown={handleKeyDown}
           rows={expanded ? 14 : 4}
+          maxLength={MAX_MEMO_LENGTH + 500} /* 살짝 여유 + 서버에서 최종 검증 */
           placeholder={hasPickerContext
             ? '추가 내용을 입력하세요 (없으면 비워도 됩니다)'
             : `예) #[중소회계법인] /감사보고서 오늘 오전10시 미팅\n예) * 오전10시 1차미팅  * 오후3시 내부검토`}
-          className="flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className={`flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 border rounded-lg p-3 focus:outline-none focus:ring-2 focus:border-transparent ${
+            overLimit ? 'border-red-300 focus:ring-red-500' : 'border-gray-200 focus:ring-indigo-500'
+          }`}
         />
         {isSpeechSupported && (
           <button

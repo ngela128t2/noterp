@@ -1,20 +1,34 @@
 import Anthropic from 'npm:@anthropic-ai/sdk'
-import { getUserFromRequest, logTokenUsage } from '../_shared/usage.ts'
+import { getUserFromRequest, logTokenUsage, checkRateLimit } from '../_shared/usage.ts'
+import { corsHeaders as buildCors, errResp as buildErrResp, getAllowedOrigin } from '../_shared/common.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const MAX_ITEMS_SIZE = 8_000  // items 텍스트 최대 8KB
+const RATE_LIMIT = 20
+const RATE_WINDOW_SEC = 60
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
+  const origin = req.headers.get('Origin') ?? ''
+  const allowOrigin = getAllowedOrigin(origin)
+  const headers = buildCors(allowOrigin)
+  const errResp = (step: string, message: string, status = 500) =>
+    buildErrResp(headers, step, message, status)
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers })
   }
 
   try {
     const { contextName, contextType, items } = await req.json()
 
+    if (typeof items !== 'string' || items.length > MAX_ITEMS_SIZE) {
+      return errResp('size_limit', '요약할 항목이 너무 많습니다.', 413)
+    }
+
     const user = await getUserFromRequest(req).catch(() => null)
+    if (!user) return errResp('auth', '로그인이 필요합니다.', 401)
+    const rateLimited = await checkRateLimit(user.id, RATE_LIMIT, RATE_WINDOW_SEC)
+    if (rateLimited) return errResp('rate_limit', '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.', 429)
+
     const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
     const MODEL = 'claude-haiku-4-5-20251001'
 
@@ -25,7 +39,7 @@ Deno.serve(async (req) => {
       messages: [{ role: 'user', content: `최근 활동 (최신순):\n${items}` }],
     })
 
-    if (user && message.usage) {
+    if (message.usage) {
       logTokenUsage({
         userId: user.id,
         email: user.email,
@@ -42,12 +56,10 @@ Deno.serve(async (req) => {
     if (content.type !== 'text') throw new Error('Unexpected response')
 
     return new Response(JSON.stringify({ text: content.text.trim() }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...headers, 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    console.error('[workspace-summary] error:', err)
+    return errResp('claude_api', 'AI 요약 생성 중 오류가 발생했습니다.')
   }
 })

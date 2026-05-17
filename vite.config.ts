@@ -28,16 +28,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
-            },
-          },
-        ],
+        // Supabase API 응답은 사용자별 개인정보를 포함하므로 캐시하지 않음
+        // (공유 기기에서 다른 사용자에게 노출될 위험 차단)
+        runtimeCaching: [],
       },
     }),
   ],

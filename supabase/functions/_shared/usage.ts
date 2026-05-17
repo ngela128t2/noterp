@@ -53,6 +53,32 @@ export interface UsageRecord {
   metadata?: Record<string, unknown>
 }
 
+// ──────────────────────────────────────────────────────────────────────
+// Rate Limit — token_usage 테이블을 활용 (별도 인프라 불필요)
+// 사용자가 최근 windowSec초 동안 한 호출 수를 세서 limit 초과면 true 반환
+// ──────────────────────────────────────────────────────────────────────
+export async function checkRateLimit(
+  userId: string,
+  limit: number,
+  windowSec: number,
+): Promise<boolean> {
+  const url = Deno.env.get('SUPABASE_URL')
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!url || !serviceKey) return false   // 키 없으면 차단 안 함 (fail-open)
+  const admin = createClient(url, serviceKey)
+  const since = new Date(Date.now() - windowSec * 1000).toISOString()
+  const { count, error } = await admin
+    .from('token_usage')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', since)
+  if (error) {
+    console.warn('[rate_limit] count 실패:', error.message)
+    return false
+  }
+  return (count ?? 0) >= limit
+}
+
 export async function logTokenUsage(rec: UsageRecord): Promise<void> {
   // user_id가 없으면 로깅 스킵 (anonymous 호출)
   if (!rec.userId) {
