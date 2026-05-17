@@ -45,7 +45,7 @@ export default function Header({ title, onMenuClick }: Props) {
         className="lg:ml-2 ml-auto flex items-center gap-1.5 text-gray-500 hover:text-indigo-600 transition-colors group"
       >
         {displayName && (
-          <span className="text-sm text-gray-600 group-hover:text-indigo-600 hidden sm:block">
+          <span className="text-sm text-gray-600 group-hover:text-indigo-600 max-w-[100px] truncate">
             {displayName}
           </span>
         )}

@@ -188,30 +188,15 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
       <div className="flex items-center justify-between mb-3">
         <label className="text-sm font-semibold text-gray-700">메모 입력</label>
         <div className="flex items-center gap-2">
-          {isSpeechSupported && (
-            <button
-              type="button"
-              onClick={toggleListening}
-              title={listening ? '음성 인식 중지' : '음성으로 입력'}
-              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
-                listening
-                  ? 'bg-red-50 text-red-500 border border-red-200'
-                  : 'text-gray-400 hover:text-indigo-600 border border-transparent hover:border-gray-200'
-              }`}
-            >
-              <span className={listening ? 'animate-pulse' : ''}>🎤</span>
-              <span className="hidden sm:inline">{listening ? '인식 중...' : '음성'}</span>
-            </button>
-          )}
           <button type="button" onClick={() => setExpanded(v => !v)} className="text-xs text-gray-400 hover:text-indigo-600 transition-colors">
-            {expanded ? '접기' : '📧 이메일/긴 텍스트'}
+            {expanded ? '접기' : '긴 텍스트'}
           </button>
           <span className="text-xs text-gray-400 hidden sm:inline">Enter 실행 · Shift+Enter 줄바꿈</span>
         </div>
       </div>
 
       {/* 1차: 자유 텍스트 (제일 위) */}
-      <div className="relative mb-3">
+      <div className="relative mb-3 flex gap-2 items-stretch">
         <textarea
           ref={textareaRef}
           value={text}
@@ -223,10 +208,25 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
           placeholder={hasPickerContext
             ? '추가 내용을 입력하세요 (없으면 비워도 됩니다)'
             : `예) #[중소회계법인] /감사보고서 오늘 오전10시 미팅\n예) * 오전10시 1차미팅  * 오후3시 내부검토`}
-          className="w-full resize-none text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="flex-1 resize-none text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         />
+        {isSpeechSupported && (
+          <button
+            type="button"
+            onClick={toggleListening}
+            title={listening ? '음성 인식 중지' : '음성으로 입력'}
+            className={`flex flex-col items-center justify-center gap-1 w-14 rounded-xl border-2 transition-all shrink-0 ${
+              listening
+                ? 'border-red-400 bg-red-50 text-red-500'
+                : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-500'
+            }`}
+          >
+            <span className={`text-2xl leading-none ${listening ? 'animate-pulse' : ''}`}>🎤</span>
+            <span className="text-[10px] font-medium leading-none">{listening ? '중지' : '음성'}</span>
+          </button>
+        )}
         {interim && (
-          <p className="absolute bottom-2 left-3 right-3 text-sm text-gray-300 pointer-events-none truncate">
+          <p className="absolute bottom-2 left-3 text-sm text-gray-300 pointer-events-none truncate" style={{ right: '4rem' }}>
             {interim}
           </p>
         )}
