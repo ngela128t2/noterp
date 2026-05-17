@@ -188,7 +188,7 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <label className="text-sm font-semibold text-gray-700">메모 입력</label>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => setExpanded(v => !v)} className="text-xs text-gray-400 hover:text-indigo-600 transition-colors">
@@ -200,6 +200,11 @@ export default function MemoInput({ onParsed, onLoading, initialClientId = '', i
           </span>
         </div>
       </div>
+
+      {/* 가벼운 입력 가이드 — 브레인스토밍 느낌 */}
+      <p className="text-[11px] text-gray-300 mb-3 leading-snug">
+        거래처 · 업무 · 일정 · 해야할 일을 자연스럽게 적어보세요
+      </p>
 
       {/* 1차: 자유 텍스트 (제일 위) */}
       <div className="relative mb-3 flex gap-2 items-stretch">

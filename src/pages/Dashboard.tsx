@@ -101,22 +101,22 @@ export default function Dashboard() {
   const projectFlow: any[] = data?.projectFlow ?? []
 
   return (
-    <div className="p-5 lg:p-6 space-y-4">
+    <div className="p-4 lg:p-6 space-y-3 lg:space-y-4">
       {/* 헤더 */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <p className="text-xs text-gray-400 mb-0.5">{formatDate(todayStr)}</p>
-          <h1 className="text-xl font-bold text-gray-900">오늘의 업무</h1>
+          <p className="text-[11px] text-gray-400 mb-0.5">{formatDate(todayStr)}</p>
+          <h1 className="text-lg lg:text-xl font-bold text-gray-900">오늘의 업무</h1>
         </div>
         {openLoops.length > 0 && (
-          <span className="text-xs bg-rose-50 text-rose-500 px-2.5 py-1 rounded-full font-medium border border-rose-100">
+          <span className="text-[11px] bg-rose-50 text-rose-500 px-2 py-0.5 rounded-full font-medium border border-rose-100">
             흐름 정지 {openLoops.length}건
           </span>
         )}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-        <div className="xl:col-span-2 space-y-5">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6 items-start">
+        <div className="xl:col-span-2 space-y-3 lg:space-y-5">
 
           {/* 메인: 오늘의 흐름 — 메모 중심 카드 */}
           <TodayFlow />
@@ -132,14 +132,14 @@ export default function Dashboard() {
           {/* 루틴 — 한 줄 */}
           {todayHabits.length > 0 && (
             <section>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 font-medium">🔁 오늘 루틴</span>
-                  <span className="text-xs text-gray-400">{completedHabitIds.size}/{todayHabits.length}</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-500 font-medium">🔁 오늘 루틴</span>
+                  <span className="text-[11px] text-gray-400">{completedHabitIds.size}/{todayHabits.length}</span>
                 </div>
                 <button onClick={() => navigate('/habits')} className="text-[10px] text-gray-400 hover:text-indigo-500">전체 →</button>
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1">
                 {todayHabits.map(h => {
                   const done = completedHabitIds.has(h.id)
                   const cl = COLOR_CLASS[h.color]
@@ -162,12 +162,12 @@ export default function Dashboard() {
           {/* 흐름 정지 — Open Loops (후속이 필요한 업무) */}
           {openLoops.length > 0 && (
             <section>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-medium text-gray-500">흐름 정지</h2>
-                  <span className="text-[10px] text-gray-400">후속이 필요한 업무</span>
+                  <h2 className="text-xs font-medium text-gray-500">흐름 정지</h2>
+                  <span className="text-[10px] text-gray-300 hidden sm:inline">후속이 필요한 업무</span>
                 </div>
-                <button onClick={() => navigate('/todos')} className="text-xs text-gray-400 hover:text-indigo-500">전체 →</button>
+                <button onClick={() => navigate('/todos')} className="text-[11px] text-gray-400 hover:text-indigo-500">전체 →</button>
               </div>
               <div className="bg-white rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
                 {openLoops.map(loop => (
@@ -364,10 +364,10 @@ function OpenLoopRow({ loop, onMemo, onComplete, onSnooze, onNavigate }: {
   const contextParts = loop.context.split(' · ').slice(1)
 
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-center gap-3 min-w-0">
+    <div className="px-3 py-2.5">
+      <div className="flex items-center gap-2 min-w-0">
         <div className="flex-1 min-w-0">
-          <p className="text-[11px] text-gray-400 mb-0.5 truncate">
+          <p className="text-[10px] text-gray-400 mb-0.5 truncate">
             {loop.daysStalled > 0 ? `${loop.daysStalled}일 후속 없음` : '후속 필요'}
             {contextParts.length > 0 && <span className="text-gray-300"> · {contextParts.join(' · ')}</span>}
           </p>

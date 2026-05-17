@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ChevronDown } from 'lucide-react'
 import { useTodayFlow, type StreamItem, type StreamGroup, type StreamOrphan } from '../../hooks/useActivityStream'
 
 function timeLabel(iso: string) {
@@ -22,96 +24,119 @@ const TYPE_DOT: Record<StreamItem['stream_type'], string> = {
   activity: 'bg-gray-300',
 }
 
-function navigateToItem(item: StreamItem, navigate: ReturnType<typeof useNavigate>) {
-  if (item.stream_type === 'memo') return navigate('/memo')
+function navigateToWorkspace(item: StreamItem, navigate: ReturnType<typeof useNavigate>) {
   if (item.client_id)  return navigate(`/workspace/client/${item.client_id}`)
   if (item.project_id) return navigate(`/workspace/project/${item.project_id}`)
   switch (item.stream_type) {
     case 'event':     return navigate('/calendar')
     case 'todo':      return navigate('/todos')
     case 'milestone': return navigate('/projects')
-    case 'activity':  return navigate('/')
+    default:          return navigate('/memo')
   }
 }
 
-// 메모 카드 — 원본 메모 + 파생 항목을 하나의 카드로 압축
+// ── 메모 카드 — 기본 압축 / 클릭 시 펼침 ─────────────────────────────────
 function MemoCard({ memo, derived }: StreamGroup) {
   const navigate = useNavigate()
-  const visible = derived.slice(0, 4)
-  const hidden = derived.length - visible.length
+  const [expanded, setExpanded] = useState(false)
 
-  // 파생 항목들이 공통으로 연결된 거래처/프로젝트 추출
-  const connectedClients = Array.from(
-    new Set(derived.map(d => d.client_name).filter((n): n is string => !!n))
-  )
-  const connectedProjects = Array.from(
-    new Set(derived.map(d => d.project_name).filter((n): n is string => !!n))
-  )
+  // 공통 거래처/프로젝트 (1개씩만 표시 — 압축)
+  const primaryClient = derived.find(d => d.client_name)?.client_name ?? null
+  const primaryProject = derived.find(d => d.project_name)?.project_name ?? null
+
+  // 타입별 카운트
+  const counts = derived.reduce((acc, d) => {
+    acc[d.stream_type] = (acc[d.stream_type] ?? 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  const summaryParts: string[] = []
+  if (counts.event)     summaryParts.push(`일정 ${counts.event}건`)
+  if (counts.todo)      summaryParts.push(`할 일 ${counts.todo}건`)
+  if (counts.milestone) summaryParts.push(`마일스톤 ${counts.milestone}건`)
+
+  const hasDerived = derived.length > 0
 
   return (
-    <button
-      onClick={() => navigateToItem(memo, navigate)}
-      className="w-full text-left bg-white rounded-xl border border-gray-100 hover:border-amber-200 hover:shadow-sm transition-all p-4 group"
-    >
-      {/* 메모 본문 — 강조, 가로 1줄 우선 */}
-      <div className="flex items-center gap-2.5 mb-1">
-        <span className="text-base leading-none shrink-0">📝</span>
-        <p className="flex-1 min-w-0 text-sm font-semibold text-gray-900 group-hover:text-indigo-600 truncate break-keep">
-          {memo.title}
-        </p>
-        <span className="text-[10px] font-mono text-gray-300 shrink-0">
-          {timeLabel(memo.created_at)}
-        </span>
-      </div>
-
-      {/* 파생 항목 — 작고 흐리게, 가로 1줄 우선 */}
-      {(connectedClients.length > 0 || connectedProjects.length > 0 || derived.length > 0) && (
-        <div className="pl-7 mt-2 space-y-0.5">
-          {/* 거래처 연결 — 최상단 */}
-          {connectedClients.map(name => (
-            <div key={`c-${name}`} className="flex items-center gap-1.5 text-xs min-w-0">
-              <span className="text-gray-300 shrink-0">↳</span>
-              <span className="text-gray-500 shrink-0">거래처</span>
-              <span className="text-indigo-500 font-medium truncate break-keep flex-1 min-w-0">· {name}</span>
-            </div>
-          ))}
-
-          {/* 프로젝트 연결 */}
-          {connectedProjects.map(name => (
-            <div key={`p-${name}`} className="flex items-center gap-1.5 text-xs min-w-0">
-              <span className="text-gray-300 shrink-0">↳</span>
-              <span className="text-gray-500 shrink-0">프로젝트</span>
-              <span className="text-purple-500 font-medium truncate break-keep flex-1 min-w-0">· {name}</span>
-            </div>
-          ))}
-
-          {/* 파생 항목 (일정/할일/마일스톤) */}
-          {visible.map(d => (
-            <div key={`${d.stream_type}-${d.id}`} className="flex items-center gap-1.5 text-xs text-gray-400 min-w-0">
-              <span className="text-gray-300 shrink-0">↳</span>
-              <span className="text-gray-500 shrink-0">{TYPE_LABEL[d.stream_type]}</span>
-              <span className="text-gray-400 truncate break-keep flex-1 min-w-0">· {d.title}</span>
-            </div>
-          ))}
-          {hidden > 0 && (
-            <div className="text-[11px] text-gray-300 pl-3">↳ 외 {hidden}건 더</div>
+    <div className="bg-white rounded-xl border border-gray-100 hover:border-amber-200 transition-colors overflow-hidden">
+      {/* 헤더 — 항상 보임 (메모 본문 + 시간 + 펼침 화살표) */}
+      <button
+        onClick={() => hasDerived ? setExpanded(v => !v) : navigate('/memo')}
+        className="w-full text-left px-3.5 py-3 group"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm leading-none shrink-0">📝</span>
+          <p className="flex-1 min-w-0 text-sm font-semibold text-gray-900 group-hover:text-indigo-600 truncate break-keep">
+            {memo.title}
+          </p>
+          <span className="text-[10px] font-mono text-gray-300 shrink-0">{timeLabel(memo.created_at)}</span>
+          {hasDerived && (
+            <ChevronDown
+              size={14}
+              className={`text-gray-300 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            />
           )}
         </div>
+
+        {/* 요약 라인 — 거래처/프로젝트 + 카운트 (압축 모드) */}
+        {(primaryClient || primaryProject || summaryParts.length > 0) && (
+          <div className="pl-7 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] min-w-0">
+            {primaryClient && (
+              <span className="text-indigo-500 font-medium truncate max-w-[40%] break-keep" title={primaryClient}>
+                거래처 · {primaryClient}
+              </span>
+            )}
+            {primaryClient && primaryProject && <span className="text-gray-200">/</span>}
+            {primaryProject && (
+              <span className="text-purple-500 font-medium truncate max-w-[40%] break-keep" title={primaryProject}>
+                프로젝트 · {primaryProject}
+              </span>
+            )}
+            {summaryParts.length > 0 && (
+              <>
+                {(primaryClient || primaryProject) && <span className="text-gray-200 mx-0.5">·</span>}
+                <span className="text-gray-400">{summaryParts.join(' · ')}</span>
+              </>
+            )}
+          </div>
+        )}
+      </button>
+
+      {/* 펼침 — 개별 파생 항목 */}
+      {expanded && hasDerived && (
+        <div className="border-t border-gray-50 bg-gray-50/30 divide-y divide-gray-50">
+          {derived.map(d => (
+            <button
+              key={`${d.stream_type}-${d.id}`}
+              onClick={(e) => { e.stopPropagation(); navigateToWorkspace(d, navigate) }}
+              className="w-full flex items-center gap-2 px-3.5 py-1.5 hover:bg-white transition-colors text-left min-w-0"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TYPE_DOT[d.stream_type]}`} />
+              <span className="text-[10px] text-gray-400 shrink-0 w-12">{TYPE_LABEL[d.stream_type]}</span>
+              <span className="flex-1 min-w-0 text-xs text-gray-600 truncate break-keep">{d.title}</span>
+            </button>
+          ))}
+          <div className="px-3.5 py-2 flex justify-end gap-2 bg-gray-50/50">
+            <button
+              onClick={() => navigate('/memo')}
+              className="text-[11px] text-gray-400 hover:text-indigo-500"
+            >
+              원본 메모 →
+            </button>
+          </div>
+        </div>
       )}
-      {derived.length === 0 && connectedClients.length === 0 && connectedProjects.length === 0 && (
-        <div className="pl-7 mt-1.5 text-[11px] text-gray-300">— 파생 항목 없음</div>
-      )}
-    </button>
+    </div>
   )
 }
 
-// Orphan — 메모 없이 직접 추가된 일정/할일/마일스톤 (보조)
+// ── Orphan — 메모 없이 직접 추가 ─────────────────────────────────────
 function OrphanRow({ item }: { item: StreamItem }) {
   const navigate = useNavigate()
   return (
     <button
-      onClick={() => navigateToItem(item, navigate)}
-      className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 transition-colors text-left group"
+      onClick={() => navigateToWorkspace(item, navigate)}
+      className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 transition-colors text-left group min-w-0"
     >
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${TYPE_DOT[item.stream_type]}`} />
       <span className="text-[11px] text-gray-400 shrink-0 w-10">{TYPE_LABEL[item.stream_type]}</span>
@@ -128,10 +153,10 @@ export default function TodayFlow() {
   if (isLoading) {
     return (
       <section>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-gray-800">오늘의 흐름</h2>
         </div>
-        <div className="h-20 bg-gray-50 rounded-xl animate-pulse" />
+        <div className="h-16 bg-gray-50 rounded-xl animate-pulse" />
       </section>
     )
   }
@@ -141,11 +166,11 @@ export default function TodayFlow() {
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-baseline gap-2">
           <h2 className="text-sm font-semibold text-gray-800">오늘의 흐름</h2>
           {memoGroups.length > 0 && (
-            <span className="text-[11px] text-gray-400">메모 {memoGroups.length}건</span>
+            <span className="text-[11px] text-gray-400">{memoGroups.length}건</span>
           )}
         </div>
         <button onClick={() => navigate('/memo')}
@@ -155,23 +180,21 @@ export default function TodayFlow() {
       </div>
 
       {memoGroups.length === 0 && orphans.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 px-4 py-8 text-center">
+        <div className="bg-white rounded-xl border border-gray-100 px-4 py-6 text-center">
           <p className="text-sm text-gray-400">오늘 새로 생긴 업무가 없습니다</p>
           <button onClick={() => navigate('/memo')} className="mt-2 text-xs text-indigo-500 hover:underline">
             메모로 시작하기 →
           </button>
         </div>
       ) : (
-        <div className="space-y-2.5">
-          {/* 메모 중심 카드 */}
+        <div className="space-y-1.5">
           {memoGroups.map(g => (
             <MemoCard key={g.memo.id} {...g} />
           ))}
 
-          {/* Orphan — 메모 없이 직접 추가된 항목들 */}
           {orphans.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden mt-2">
+              <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
                 직접 추가
               </div>
               <div className="divide-y divide-gray-50">
