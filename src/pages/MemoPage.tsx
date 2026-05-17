@@ -332,7 +332,30 @@ export default function MemoPage() {
         .eq('user_id', user.id)
       if (projectReadError) throw projectReadError
 
-      const projectByName = buildNameMap((existingProjects ?? []) as ProjectRow[])
+      // 프로젝트 매칭: (name + client_id) 조합 키
+      // 같은 이름 프로젝트가 여러 거래처에 있을 수 있으므로 client_id까지 고려해야 함
+      // 예: "2026 종소세 신고" 가 어마마법인과 태성산업 양쪽에 따로 존재 가능
+      const projectsByNameAndClient = new Map<string, ProjectRow>()
+      const projectsByNameOnly = new Map<string, ProjectRow[]>()   // client 미지정 매칭용 fallback
+      for (const p of (existingProjects ?? []) as ProjectRow[]) {
+        const nameKey = normalizeMemoName(p.name)
+        projectsByNameAndClient.set(`${nameKey}::${p.client_id ?? 'null'}`, p)
+        const arr = projectsByNameOnly.get(nameKey) ?? []
+        arr.push(p)
+        projectsByNameOnly.set(nameKey, arr)
+      }
+      // 이름만으로 검색 (헬퍼)
+      const findProjectByNameAndClient = (nameKey: string, clientId: string | null): ProjectRow | null => {
+        // 1) 이름 + 정확한 client_id 매칭
+        const exact = projectsByNameAndClient.get(`${nameKey}::${clientId ?? 'null'}`)
+        if (exact) return exact
+        // 2) client_id 후보가 없거나 null인 경우, 이름만 매칭되는 client_id=null 프로젝트
+        if (clientId) {
+          const orphan = projectsByNameAndClient.get(`${nameKey}::null`)
+          if (orphan) return orphan
+        }
+        return null
+      }
       const hintedClient = explicitClientNames[0] ? clientByName.get(normalizeMemoName(explicitClientNames[0])) : null
 
       // 중복 방지: shortcut + Claude 파싱 결과를 name 기준으로 병합
@@ -369,8 +392,9 @@ export default function MemoPage() {
         const name = project.name.trim()
         if (!name) continue
         const key = normalizeMemoName(name)
-        const existing = projectByName.get(key)
         const projectClient = project.client_name ? clientByName.get(normalizeMemoName(project.client_name)) ?? hintedClient : hintedClient
+        // 매칭: 이름 + client_id 정확 매칭. 다른 거래처에 같은 이름 프로젝트가 있어도 충돌하지 않음.
+        const existing = findProjectByNameAndClient(key, projectClient?.id ?? null)
 
         if (existing) {
           const nextMemo = appendMemo(existing.memo, rt)
@@ -420,29 +444,37 @@ export default function MemoPage() {
         }
         if (data) {
           const row = data as ProjectRow
-          projectByName.set(normalizeMemoName(row.name), row)
+          const nameKey = normalizeMemoName(row.name)
+          projectsByNameAndClient.set(`${nameKey}::${row.client_id ?? 'null'}`, row)
+          const arr = projectsByNameOnly.get(nameKey) ?? []
+          arr.push(row)
+          projectsByNameOnly.set(nameKey, arr)
           touchedProjectIds.add(row.id)
           await ensureMilestones(row.id, project, memoTitle, primaryDueDate, milestoneCache, memoId)
         }
       }
 
-      // primary project fallback 체인:
-      //   1) 명시 shortcut (/[name])
-      //   2) AI 추출 프로젝트 첫번째 (방금 자동 생성된 것 포함)
-      const primaryProjectName = shortcuts.projects[0] ?? allAiProjects[0]?.name ?? null
-      const primaryProject = primaryProjectName ? projectByName.get(normalizeMemoName(primaryProjectName)) : null
-      const primaryProjectId = primaryProject?.id ?? null
-      // 거래처 fallback 체인:
+      // 거래처 fallback 체인 (먼저 결정 — primaryClient가 primaryProject 매칭에 사용됨):
       //   1) 명시(#[name])로 지정된 거래처
-      //   2) primary project의 client_id
-      //   3) AI가 events/projects/clients에서 식별한 첫 거래처
+      //   2) AI가 events/projects/clients에서 식별한 첫 거래처
+      //   3) primary project의 client_id (마지막 fallback — 다른 거래처의 같은 이름 프로젝트와 충돌 방지)
       const firstReferencedClient = referencedClientNames
         .map(n => clientByName.get(normalizeMemoName(n)))
         .find(c => !!c) ?? null
+
+      // primary project: (이름 + primaryClient 조합)으로 정확히 매칭
+      //   같은 이름이 다른 거래처에 있어도 의도한 거래처의 프로젝트만 매칭됨
+      const primaryProjectName = shortcuts.projects[0] ?? allAiProjects[0]?.name ?? null
+      const primaryClientCandidate = hintedClient ?? firstReferencedClient
+      const primaryProject = primaryProjectName
+        ? findProjectByNameAndClient(normalizeMemoName(primaryProjectName), primaryClientCandidate?.id ?? null)
+        : null
+      const primaryProjectId = primaryProject?.id ?? null
+
       const primaryClientId =
         hintedClient?.id
-        ?? primaryProject?.client_id
         ?? firstReferencedClient?.id
+        ?? primaryProject?.client_id
         ?? null
 
       // 날짜 fallback 체인: shortcuts.dates → parsed milestones → primaryDueDate
