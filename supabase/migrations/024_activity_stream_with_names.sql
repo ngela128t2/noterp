@@ -1,7 +1,11 @@
 -- 024: activity_stream VIEW에 client_name / project_name 추가
 -- Today Flow / Workspace Timeline에서 거래처/프로젝트 context를 즉시 표시 가능
+--
+-- 컬럼 구조 변경(추가) 때문에 CREATE OR REPLACE로는 불가하므로 DROP 후 재생성
 
-CREATE OR REPLACE VIEW activity_stream AS
+DROP VIEW IF EXISTS activity_stream;
+
+CREATE VIEW activity_stream AS
 
 -- 1. 메모 (시작점)
 SELECT
