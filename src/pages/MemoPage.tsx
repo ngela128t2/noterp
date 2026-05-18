@@ -603,12 +603,22 @@ export default function MemoPage() {
         if (data) contactByName.set(normalizeMemoName(data.name), data)
       }
 
+      // Step 1 안정화 — 메모 저장 후 모든 관련 쿼리 즉시 무효화
+      // 워크스페이스 타임라인 / Today Flow / 캘린더 / 메모 상세 / 대시보드 모두 갱신
+      // (TanStack Query는 prefix 매칭이라 base 키만으로 하위 키도 함께 무효화됨)
       await Promise.all([
         loadLogs(),
         queryClient.invalidateQueries({ queryKey: ['clients'] }),
         queryClient.invalidateQueries({ queryKey: ['projects'] }),
         queryClient.invalidateQueries({ queryKey: ['milestones'] }),
+        queryClient.invalidateQueries({ queryKey: ['calendar_events'] }),    // 캘린더 + 워크스페이스 일정
+        queryClient.invalidateQueries({ queryKey: ['todos'] }),              // 워크스페이스 할 일
+        queryClient.invalidateQueries({ queryKey: ['contacts'] }),           // 연락처 생성된 경우
         queryClient.invalidateQueries({ queryKey: ['activity_logs'] }),
+        queryClient.invalidateQueries({ queryKey: ['activity_stream'] }),    // Today Flow / 메모 파생
+        queryClient.invalidateQueries({ queryKey: ['memo'] }),               // 메모 상세 페이지
+        queryClient.invalidateQueries({ queryKey: ['dashboard_stats'] }),    // 대시보드 KPI
+        queryClient.invalidateQueries({ queryKey: ['open_loops'] }),         // 흐름 정지
         queryClient.invalidateQueries({ queryKey: ['review_badges'] }),
       ])
 
