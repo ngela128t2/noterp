@@ -1,9 +1,9 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState } from 'react'
-import { ArrowLeft, Building2, FolderKanban, CalendarDays, CheckSquare, Target, ChevronDown } from 'lucide-react'
-import { useMemoDetail, useMemoDerived } from '../hooks/useMemoDetail'
-import { useToggleTodo, useSnoozeTodo } from '../hooks/useTodos'
-import { useCompleteCalendarEvent } from '../hooks/useCalendarEvents'
+import { ArrowLeft, Building2, FolderKanban, CalendarDays, CheckSquare, Target, ChevronDown, Pencil, Trash2, X, Check } from 'lucide-react'
+import { useMemoDetail, useMemoDerived, type DerivedTodo, type DerivedEvent } from '../hooks/useMemoDetail'
+import { useToggleTodo, useSnoozeTodo, useUpdateTodo, useDeleteTodo } from '../hooks/useTodos'
+import { useCompleteCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent } from '../hooks/useCalendarEvents'
 
 function formatDateTime(iso: string) {
   const d = new Date(iso)
@@ -32,9 +32,6 @@ export default function MemoDetailPage() {
 
   const { data: memo, isLoading } = useMemoDetail(id)
   const { data: derived } = useMemoDerived(id)
-  const toggleTodo = useToggleTodo()
-  const snoozeTodo = useSnoozeTodo()
-  const completeEvent = useCompleteCalendarEvent()
 
   if (isLoading) {
     return (
@@ -145,38 +142,7 @@ export default function MemoDetailPage() {
       {todos.length > 0 && (
         <Section icon={<CheckSquare size={14} className="text-orange-500" />} title={`할 일 ${todos.length}건`}>
           <ul className="divide-y divide-gray-50">
-            {todos.map(t => {
-              const badge = t.priority ? PRIORITY_BADGE[t.priority] : null
-              return (
-                <li key={t.id} className="flex items-center gap-2.5 py-2">
-                  <input
-                    type="checkbox"
-                    checked={t.completed}
-                    onChange={() => toggleTodo.mutate({ id: t.id, completed: !t.completed })}
-                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm break-keep ${t.completed ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                      {t.title}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
-                      {t.due_date && <span>📅 {shortDate(t.due_date)}</span>}
-                      {badge && (
-                        <span className={`px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>
-                      )}
-                    </div>
-                  </div>
-                  {!t.completed && (
-                    <button
-                      onClick={() => snoozeTodo.mutate({ id: t.id, days: 1 })}
-                      className="text-[11px] text-gray-300 hover:text-gray-500 shrink-0"
-                    >
-                      +1일
-                    </button>
-                  )}
-                </li>
-              )
-            })}
+            {todos.map(t => <TodoRow key={t.id} todo={t} />)}
           </ul>
         </Section>
       )}
@@ -185,26 +151,7 @@ export default function MemoDetailPage() {
       {events.length > 0 && (
         <Section icon={<CalendarDays size={14} className="text-blue-500" />} title={`일정 ${events.length}건`}>
           <ul className="divide-y divide-gray-50">
-            {events.map(e => (
-              <li key={e.id} className="flex items-center gap-2.5 py-2">
-                <input
-                  type="checkbox"
-                  checked={e.completed}
-                  onChange={() => completeEvent.mutate(e.id)}
-                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm break-keep ${e.completed ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                    {e.title}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
-                    <span>📅 {shortDate(e.date)}</span>
-                    {e.time && <span>⏰ {e.time.slice(0, 5)}</span>}
-                    {e.location && <span className="truncate max-w-[120px]">📍 {e.location}</span>}
-                  </div>
-                </div>
-              </li>
-            ))}
+            {events.map(e => <EventRow key={e.id} event={e} />)}
           </ul>
         </Section>
       )}
@@ -242,6 +189,220 @@ export default function MemoDetailPage() {
         </button>
       </div>
     </div>
+  )
+}
+
+// ── Todo 행 — 인라인 편집 가능 ─────────────────────────────────────────────
+function TodoRow({ todo }: { todo: DerivedTodo }) {
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(todo.title)
+  const [dueDate, setDueDate] = useState(todo.due_date ?? '')
+  const [priority, setPriority] = useState(todo.priority ?? 'medium')
+
+  const toggleTodo = useToggleTodo()
+  const snoozeTodo = useSnoozeTodo()
+  const updateTodo = useUpdateTodo()
+  const deleteTodo = useDeleteTodo()
+
+  const badge = todo.priority ? PRIORITY_BADGE[todo.priority] : null
+
+  const cancel = () => {
+    setEditing(false)
+    setTitle(todo.title)
+    setDueDate(todo.due_date ?? '')
+    setPriority(todo.priority ?? 'medium')
+  }
+
+  const save = () => {
+    if (!title.trim()) return
+    updateTodo.mutate(
+      { id: todo.id, title: title.trim(), due_date: dueDate || null, priority },
+      { onSuccess: () => setEditing(false) },
+    )
+  }
+
+  const remove = () => {
+    if (!confirm('이 할 일을 삭제하시겠습니까?')) return
+    deleteTodo.mutate(todo.id)
+  }
+
+  if (editing) {
+    return (
+      <li className="py-2 space-y-2 bg-amber-50/30 -mx-4 px-4">
+        <input
+          autoFocus
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
+          className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        />
+        <div className="flex flex-wrap gap-1.5">
+          <input
+            type="date"
+            value={dueDate}
+            onChange={e => setDueDate(e.target.value)}
+            className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          />
+          <select
+            value={priority}
+            onChange={e => setPriority(e.target.value as 'high' | 'medium' | 'low')}
+            className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          >
+            <option value="high">높음</option>
+            <option value="medium">보통</option>
+            <option value="low">낮음</option>
+          </select>
+          <div className="ml-auto flex gap-1">
+            <button onClick={cancel} className="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="취소">
+              <X size={14} />
+            </button>
+            <button onClick={save} disabled={updateTodo.isPending}
+              className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded" title="저장">
+              <Check size={14} />
+            </button>
+          </div>
+        </div>
+      </li>
+    )
+  }
+
+  return (
+    <li className="flex items-center gap-2.5 py-2 group">
+      <input
+        type="checkbox"
+        checked={todo.completed}
+        onChange={() => toggleTodo.mutate({ id: todo.id, completed: !todo.completed })}
+        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
+      />
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm break-keep ${todo.completed ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+          {todo.title}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
+          {todo.due_date && <span>📅 {shortDate(todo.due_date)}</span>}
+          {badge && <span className={`px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>}
+        </div>
+      </div>
+      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        {!todo.completed && (
+          <button
+            onClick={() => snoozeTodo.mutate({ id: todo.id, days: 1 })}
+            className="text-[10px] text-gray-300 hover:text-gray-500 px-1.5 py-1"
+            title="+1일 미루기"
+          >
+            +1일
+          </button>
+        )}
+        <button onClick={() => setEditing(true)} className="p-1 text-gray-300 hover:text-indigo-500 rounded" title="수정">
+          <Pencil size={12} />
+        </button>
+        <button onClick={remove} className="p-1 text-gray-300 hover:text-red-500 rounded" title="삭제">
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </li>
+  )
+}
+
+// ── Event 행 — 인라인 편집 가능 ───────────────────────────────────────────
+function EventRow({ event }: { event: DerivedEvent }) {
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(event.title)
+  const [date, setDate] = useState(event.date)
+  const [time, setTime] = useState(event.time ?? '')
+  const [location, setLocation] = useState(event.location ?? '')
+
+  const completeEvent = useCompleteCalendarEvent()
+  const updateEvent = useUpdateCalendarEvent()
+  const deleteEvent = useDeleteCalendarEvent()
+
+  const cancel = () => {
+    setEditing(false)
+    setTitle(event.title)
+    setDate(event.date)
+    setTime(event.time ?? '')
+    setLocation(event.location ?? '')
+  }
+
+  const save = () => {
+    if (!title.trim() || !date) return
+    updateEvent.mutate(
+      {
+        id: event.id,
+        title: title.trim(),
+        date,
+        time: time || null,
+        location: location.trim() || null,
+        client_id: event.client_id,
+        project_id: event.project_id,
+      },
+      { onSuccess: () => setEditing(false) },
+    )
+  }
+
+  const remove = () => {
+    if (!confirm('이 일정을 삭제하시겠습니까?')) return
+    deleteEvent.mutate(event.id)
+  }
+
+  if (editing) {
+    return (
+      <li className="py-2 space-y-2 bg-blue-50/30 -mx-4 px-4">
+        <input
+          autoFocus
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
+          className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        />
+        <div className="flex flex-wrap gap-1.5">
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+          <input type="time" value={time} onChange={e => setTime(e.target.value)}
+            className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+          <input value={location} onChange={e => setLocation(e.target.value)} placeholder="장소"
+            className="flex-1 min-w-[80px] px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+          <div className="flex gap-1">
+            <button onClick={cancel} className="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="취소">
+              <X size={14} />
+            </button>
+            <button onClick={save} disabled={updateEvent.isPending}
+              className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded" title="저장">
+              <Check size={14} />
+            </button>
+          </div>
+        </div>
+      </li>
+    )
+  }
+
+  return (
+    <li className="flex items-center gap-2.5 py-2 group">
+      <input
+        type="checkbox"
+        checked={event.completed}
+        onChange={() => completeEvent.mutate(event.id)}
+        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
+      />
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm break-keep ${event.completed ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+          {event.title}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
+          <span>📅 {shortDate(event.date)}</span>
+          {event.time && <span>⏰ {event.time.slice(0, 5)}</span>}
+          {event.location && <span className="truncate max-w-[120px]">📍 {event.location}</span>}
+        </div>
+      </div>
+      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={() => setEditing(true)} className="p-1 text-gray-300 hover:text-indigo-500 rounded" title="수정">
+          <Pencil size={12} />
+        </button>
+        <button onClick={remove} className="p-1 text-gray-300 hover:text-red-500 rounded" title="삭제">
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </li>
   )
 }
 

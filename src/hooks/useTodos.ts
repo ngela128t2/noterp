@@ -67,6 +67,21 @@ export function useCreateTodo() {
   })
 }
 
+export function useUpdateTodo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...patch }: { id: string; title?: string; due_date?: string | null; priority?: 'high' | 'medium' | 'low' | null }) => {
+      const { error } = await supabase.from('todos').update(patch).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['todos'] })
+      qc.invalidateQueries({ queryKey: ['activity_stream'] })
+      qc.invalidateQueries({ queryKey: ['memo'] })
+    },
+  })
+}
+
 export function useToggleTodo() {
   const qc = useQueryClient()
   return useMutation({
