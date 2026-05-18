@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { ArrowLeft, Building2, FolderKanban, CalendarDays, CheckSquare, Target, ChevronDown, Pencil, Trash2, Plus } from 'lucide-react'
 import { useMemoDetail, useMemoDerived, type DerivedTodo, type DerivedEvent } from '../hooks/useMemoDetail'
 import { useToggleTodo, useSnoozeTodo, useUpdateTodo, useDeleteTodo, useCreateTodo } from '../hooks/useTodos'
@@ -30,10 +30,43 @@ const PRIORITY_BADGE: Record<string, { cls: string; label: string }> = {
 export default function MemoDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [showRaw, setShowRaw] = useState(false)
 
   const { data: memo, isLoading } = useMemoDetail(id)
   const { data: derived } = useMemoDerived(id)
+
+  // 메모 삭제 — 파생된 할 일/일정/마일스톤도 함께 삭제
+  const deleteMemo = useMutation({
+    mutationFn: async () => {
+      if (!id) return
+      // 순서: 파생 항목 먼저 (FK 안전), 그 다음 memos
+      await supabase.from('milestones').delete().eq('memo_id', id)
+      await supabase.from('calendar_events').delete().eq('memo_id', id)
+      await supabase.from('todos').delete().eq('memo_id', id)
+      const { error } = await supabase.from('memos').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['activity_stream'] })
+      qc.invalidateQueries({ queryKey: ['todos'] })
+      qc.invalidateQueries({ queryKey: ['calendar_events'] })
+      qc.invalidateQueries({ queryKey: ['dashboard_stats'] })
+      navigate('/', { replace: true })
+    },
+  })
+
+  const handleDeleteMemo = () => {
+    const todoCount = derived?.todos.length ?? 0
+    const eventCount = derived?.events.length ?? 0
+    const milestoneCount = derived?.milestones.length ?? 0
+    const total = todoCount + eventCount + milestoneCount
+    const msg = total > 0
+      ? `이 메모와 함께 생성된 ${total}개 항목(할 일 ${todoCount} · 일정 ${eventCount} · 마일스톤 ${milestoneCount})이 모두 삭제됩니다. 계속하시겠습니까?`
+      : '이 메모를 삭제하시겠습니까?'
+    if (!confirm(msg)) return
+    deleteMemo.mutate()
+  }
 
   if (isLoading) {
     return (
@@ -73,7 +106,18 @@ export default function MemoDetailPage() {
         >
           <ArrowLeft size={14} /> 돌아가기
         </button>
-        <span className="text-[11px] text-gray-400">{formatDateTime(memo.created_at)}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-gray-400">{formatDateTime(memo.created_at)}</span>
+          <button
+            onClick={handleDeleteMemo}
+            disabled={deleteMemo.isPending}
+            className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-red-500 hover:bg-red-50 px-2 py-1 rounded-md transition-colors disabled:opacity-40"
+            title="메모와 모든 연결 항목 삭제"
+          >
+            <Trash2 size={11} />
+            <span>{deleteMemo.isPending ? '삭제 중...' : '메모 삭제'}</span>
+          </button>
+        </div>
       </div>
 
       {/* 메모 본문 카드 */}
