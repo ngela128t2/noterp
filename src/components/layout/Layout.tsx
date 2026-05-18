@@ -9,6 +9,7 @@ import Sidebar from './Sidebar'
 const PAGE_TITLE: Record<string, string> = {
   '/': '대시보드',
   '/memo': '메모 입력',
+  // /memo/:id 는 동적 라우트라 별도 처리 필요 (헤더에서 자체 처리)
   '/clients': '거래처',
   '/projects': '프로젝트',
   '/calendar': '캘린더',
@@ -26,7 +27,8 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const location = useLocation()
-  const title = PAGE_TITLE[location.pathname] ?? ''
+  const title = PAGE_TITLE[location.pathname]
+    ?? (location.pathname.startsWith('/memo/') ? '메모 상세' : '')
 
   useEffect(() => {
     setSidebarOpen(false)

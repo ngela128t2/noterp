@@ -8,6 +8,7 @@ import Layout from './components/layout/Layout'
 import LoginPage from './pages/LoginPage'
 import Dashboard from './pages/Dashboard'
 import MemoPage from './pages/MemoPage'
+import MemoDetailPage from './pages/MemoDetailPage'
 import ClientsPage from './pages/ClientsPage'
 import ProjectsPage from './pages/ProjectsPage'
 import TodosPage from './pages/TodosPage'
@@ -81,6 +82,7 @@ export default function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="memo" element={<MemoPage />} />
+            <Route path="memo/:id" element={<MemoDetailPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="calendar" element={<CalendarPage />} />

@@ -75,10 +75,10 @@ function MemoCard({ memo, derived }: StreamGroup) {
         ? 'border-rose-200 hover:border-rose-300'
         : 'border-gray-100 hover:border-amber-200'
     }`}>
-      {/* 헤더 — 항상 보임 */}
-      <button
-        onClick={() => hasDerived ? setExpanded(v => !v) : navigate('/memo')}
-        className="w-full text-left px-3.5 py-3 group"
+      {/* 헤더 — 본문 클릭 = 상세 페이지 / 화살표 클릭 = 인라인 펼침 */}
+      <div
+        onClick={() => navigate(`/memo/${memo.id}`)}
+        className="w-full text-left px-3.5 py-3 group cursor-pointer"
       >
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm leading-none shrink-0">📝</span>
@@ -95,10 +95,16 @@ function MemoCard({ memo, derived }: StreamGroup) {
           )}
           <span className="text-[10px] font-mono text-gray-300 shrink-0">{timeLabel(memo.created_at)}</span>
           {hasDerived && (
-            <ChevronDown
-              size={14}
-              className={`text-gray-300 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
-            />
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded(v => !v) }}
+              className="text-gray-300 hover:text-gray-600 shrink-0 -m-1 p-1"
+              aria-label={expanded ? '접기' : '펼치기'}
+            >
+              <ChevronDown
+                size={14}
+                className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
+              />
+            </button>
           )}
         </div>
 
@@ -127,7 +133,7 @@ function MemoCard({ memo, derived }: StreamGroup) {
             )}
           </div>
         )}
-      </button>
+      </div>
 
       {/* 펼침 — 개별 파생 항목 */}
       {expanded && hasDerived && (
