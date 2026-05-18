@@ -89,6 +89,32 @@ memo_type을 하나 선택:
 - *로 시작하는 항목은 회의 안건 → 별도 milestone/todo 생성 금지
 - 하나의 사건을 event + milestone + todo 동시에 만들지 말 것
 
+[다중 이벤트 분리 — 매우 중요]
+한 메모에 시간/날짜가 다른 활동이 여러 개 언급되면 반드시 events[]에 각각 분리해서 추가.
+쉼표(,), 줄바꿈, "그리고/또" 같은 구분자가 있으면 별개 event로 처리.
+
+예 1)
+입력: "한공회 어제 10시 긴급회의, 오늘 오후6시 논현노들섬 뒷풀이"
+→ events:
+  [
+    {"title": "한공회 긴급회의", "date": "어제 날짜", "time": "10:00", "location": null, "client_name": null},
+    {"title": "한공회 뒷풀이", "date": "오늘 날짜", "time": "18:00", "location": "논현노들섬", "client_name": null}
+  ]
+
+예 2)
+입력: "내일 오전 9시 ABC법인 미팅, 오후 2시 XYZ회계 통화"
+→ events:
+  [
+    {"title": "ABC법인 미팅", "date": "내일 날짜", "time": "09:00", "client_name": "ABC법인"},
+    {"title": "XYZ회계 통화", "date": "내일 날짜", "time": "14:00", "client_name": "XYZ회계"}
+  ]
+
+규칙:
+- 시간 표현이 메모 안에 2개 이상이면 events도 2개 이상
+- 각 event의 title은 공통 맥락 + 개별 활동명 (위 예시 참고)
+- 장소/거래처는 가까운 시간 표현과 같은 event에 묶기
+- 단, 하나의 활동을 다른 표현으로 반복한 경우는 제외 (예: "내일 미팅 = 화요일 미팅")
+
 [urgency 자동 추론 — 매우 중요]
 다음 표현이 메모에 있으면 해당 todo의 priority를 추론하세요:
 - 긴급/급함/asap/마감/데드라인/오늘까지/내일까지 → priority: "high"
