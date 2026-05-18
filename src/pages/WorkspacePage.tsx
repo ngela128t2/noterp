@@ -6,7 +6,7 @@ import ActivityFeedPanel from '../components/workspace/ActivityFeedPanel'
 import { useClientTimeline, useProjectTimeline } from '../hooks/useContextTimeline'
 import { useClients, useDismissReview } from '../hooks/useClients'
 import { useContacts } from '../hooks/useContacts'
-import { useClientProjects, useProjects } from '../hooks/useProjects'
+import { useClientProjects, useProjects, useCreateProject } from '../hooks/useProjects'
 import { useWorkspaceStore } from '../store/workspaceStore'
 import type { Client, Project } from '../types'
 
@@ -185,33 +185,8 @@ export default function WorkspacePage() {
           />
 
           {/* 관련 프로젝트 (거래처 워크스페이스) */}
-          {isClient && clientProjects.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">관련 프로젝트</h3>
-                <button onClick={() => navigate('/projects')} className="text-xs text-gray-400 hover:text-indigo-500">전체 →</button>
-              </div>
-              <div className="space-y-2">
-                {clientProjects.map((p: any) => (
-                  <Link
-                    key={p.id}
-                    to={`/workspace/project/${p.id}`}
-                    className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all group"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{p.name}</p>
-                      {p.type && <p className="text-xs text-gray-400">{p.type}</p>}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[p.status]}`}>
-                        {STATUS_LABEL[p.status]}
-                      </span>
-                      <span className="text-xs text-gray-300 group-hover:text-indigo-400 transition-colors">→</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
+          {isClient && id && (
+            <ClientProjectsSection clientId={id} projects={clientProjects} />
           )}
 
           {/* 연락처 */}
@@ -404,6 +379,139 @@ function WorkItemsSection({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ── 거래처 워크스페이스 — 관련 프로젝트 (목록 + 인라인 추가) ─────────────
+function ClientProjectsSection({ clientId, projects }: { clientId: string; projects: Project[] }) {
+  const navigate = useNavigate()
+  const createProject = useCreateProject()
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const [type, setType] = useState('')
+
+  const reset = () => { setAdding(false); setName(''); setType('') }
+
+  const save = () => {
+    if (!name.trim()) return
+    createProject.mutate(
+      {
+        client_id: clientId,
+        name: name.trim(),
+        type: type.trim() || null,
+        type_detail: null,
+        start_date: null,
+        end_date: null,
+        status: 'in_progress',
+        manager_id: null,
+        memo: null,
+        needs_review: false,
+        source: 'manual',
+      } as Omit<Project, 'id' | 'created_at'>,
+      { onSuccess: reset },
+    )
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2.5">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">관련 프로젝트</h3>
+        <div className="flex items-center gap-2">
+          {!adding && (
+            <button
+              onClick={() => setAdding(true)}
+              className="text-xs text-indigo-500 hover:text-indigo-700 font-medium"
+            >
+              + 추가
+            </button>
+          )}
+          {projects.length > 0 && (
+            <button onClick={() => navigate('/projects')} className="text-xs text-gray-400 hover:text-indigo-500">
+              전체 →
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {/* 신규 추가 폼 */}
+        {adding && (
+          <div className="bg-indigo-50/40 border-l-2 border-indigo-400 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <span className="text-[11px] font-semibold text-indigo-600">새 프로젝트 추가</span>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">프로젝트명</label>
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') reset() }}
+                  placeholder="예: 2026년 외부감사 / 종합소득세 신고 / TF 운영"
+                  className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">분류 (선택)</label>
+                <input
+                  value={type}
+                  onChange={e => setType(e.target.value)}
+                  placeholder="외부감사 / 세무 / 자문 / 컨설팅 등"
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  onClick={reset}
+                  className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={save}
+                  disabled={createProject.isPending || !name.trim()}
+                  className="px-4 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-lg transition-colors"
+                >
+                  {createProject.isPending ? '저장 중...' : '저장'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {projects.map(p => (
+          <Link
+            key={p.id}
+            to={`/workspace/project/${p.id}`}
+            className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3 hover:border-indigo-300 hover:shadow-sm transition-all group"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-800 truncate">{p.name}</p>
+              {p.type && <p className="text-xs text-gray-400">{p.type}</p>}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[p.status]}`}>
+                {STATUS_LABEL[p.status]}
+              </span>
+              <span className="text-xs text-gray-300 group-hover:text-indigo-400 transition-colors">→</span>
+            </div>
+          </Link>
+        ))}
+
+        {projects.length === 0 && !adding && (
+          <div className="bg-white rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center">
+            <p className="text-sm text-gray-400">아직 연결된 프로젝트가 없습니다</p>
+            <button
+              onClick={() => setAdding(true)}
+              className="mt-1.5 text-xs text-indigo-500 hover:underline"
+            >
+              + 첫 프로젝트 추가
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
