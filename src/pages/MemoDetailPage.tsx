@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Building2, FolderKanban, CalendarDays, CheckSquare, Target, ChevronDown, Pencil, Trash2, X, Check, Plus } from 'lucide-react'
+import { ArrowLeft, Building2, FolderKanban, CalendarDays, CheckSquare, Target, ChevronDown, Pencil, Trash2, Plus } from 'lucide-react'
 import { useMemoDetail, useMemoDerived, type DerivedTodo, type DerivedEvent } from '../hooks/useMemoDetail'
 import { useToggleTodo, useSnoozeTodo, useUpdateTodo, useDeleteTodo, useCreateTodo } from '../hooks/useTodos'
 import { useCompleteCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent } from '../hooks/useCalendarEvents'
@@ -226,39 +226,61 @@ function TodoRow({ todo }: { todo: DerivedTodo }) {
     deleteTodo.mutate(todo.id)
   }
 
+  // ── 수정 모드: 카드 전체가 edit 상태 ──
   if (editing) {
     return (
-      <li className="py-2 space-y-2 bg-amber-50/30 -mx-4 px-4">
-        <input
-          autoFocus
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
-          className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        />
-        <div className="flex flex-wrap gap-1.5">
-          <input
-            type="date"
-            value={dueDate}
-            onChange={e => setDueDate(e.target.value)}
-            className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
-          />
-          <select
-            value={priority}
-            onChange={e => setPriority(e.target.value as 'high' | 'medium' | 'low')}
-            className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
-          >
-            <option value="high">높음</option>
-            <option value="medium">보통</option>
-            <option value="low">낮음</option>
-          </select>
-          <div className="ml-auto flex gap-1">
-            <button onClick={cancel} className="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="취소">
-              <X size={14} />
+      <li className="-mx-4 px-4 py-3 bg-indigo-50/40 border-l-2 border-indigo-400">
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <Pencil size={11} className="text-indigo-500" />
+          <span className="text-[11px] font-semibold text-indigo-600">할 일 수정 중</span>
+        </div>
+        <div className="space-y-2">
+          <div>
+            <label className="block text-[10px] font-medium text-gray-500 mb-1">제목</label>
+            <input
+              autoFocus
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[10px] font-medium text-gray-500 mb-1">마감일</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={e => setDueDate(e.target.value)}
+                className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-medium text-gray-500 mb-1">우선순위</label>
+              <select
+                value={priority}
+                onChange={e => setPriority(e.target.value as 'high' | 'medium' | 'low')}
+                className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+              >
+                <option value="high">높음</option>
+                <option value="medium">보통</option>
+                <option value="low">낮음</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              onClick={cancel}
+              className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              취소
             </button>
-            <button onClick={save} disabled={updateTodo.isPending}
-              className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded" title="저장">
-              <Check size={14} />
+            <button
+              onClick={save}
+              disabled={updateTodo.isPending || !title.trim()}
+              className="px-4 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-lg transition-colors"
+            >
+              {updateTodo.isPending ? '저장 중...' : '저장'}
             </button>
           </div>
         </div>
@@ -266,8 +288,9 @@ function TodoRow({ todo }: { todo: DerivedTodo }) {
     )
   }
 
+  // ── 기본 모드 ──
   return (
-    <li className="flex items-center gap-2.5 py-2 group">
+    <li className="flex items-center gap-2.5 py-2.5">
       <input
         type="checkbox"
         checked={todo.completed}
@@ -283,18 +306,21 @@ function TodoRow({ todo }: { todo: DerivedTodo }) {
           {badge && <span className={`px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>}
         </div>
       </div>
-      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1 shrink-0">
         {!todo.completed && (
           <button
             onClick={() => snoozeTodo.mutate({ id: todo.id, days: 1 })}
-            className="text-[10px] text-gray-300 hover:text-gray-500 px-1.5 py-1"
+            className="text-[10px] text-gray-400 hover:text-gray-600 px-1.5 py-1 hidden sm:block"
             title="+1일 미루기"
           >
             +1일
           </button>
         )}
-        <button onClick={() => setEditing(true)} className="p-1 text-gray-300 hover:text-indigo-500 rounded" title="수정">
-          <Pencil size={12} />
+        <button
+          onClick={() => setEditing(true)}
+          className="text-[11px] text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-md transition-colors"
+        >
+          수정
         </button>
         <button onClick={remove} className="p-1 text-gray-300 hover:text-red-500 rounded" title="삭제">
           <Trash2 size={12} />
@@ -345,30 +371,55 @@ function EventRow({ event }: { event: DerivedEvent }) {
     deleteEvent.mutate(event.id)
   }
 
+  // ── 수정 모드 ──
   if (editing) {
     return (
-      <li className="py-2 space-y-2 bg-blue-50/30 -mx-4 px-4">
-        <input
-          autoFocus
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
-          className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
-        />
-        <div className="flex flex-wrap gap-1.5">
-          <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-          <input type="time" value={time} onChange={e => setTime(e.target.value)}
-            className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-          <input value={location} onChange={e => setLocation(e.target.value)} placeholder="장소"
-            className="flex-1 min-w-[80px] px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-          <div className="flex gap-1">
-            <button onClick={cancel} className="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="취소">
-              <X size={14} />
+      <li className="-mx-4 px-4 py-3 bg-indigo-50/40 border-l-2 border-indigo-400">
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <Pencil size={11} className="text-indigo-500" />
+          <span className="text-[11px] font-semibold text-indigo-600">일정 수정 중</span>
+        </div>
+        <div className="space-y-2">
+          <div>
+            <label className="block text-[10px] font-medium text-gray-500 mb-1">제목</label>
+            <input
+              autoFocus
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }}
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-[10px] font-medium text-gray-500 mb-1">날짜</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-medium text-gray-500 mb-1">시간</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-medium text-gray-500 mb-1">장소</label>
+            <input value={location} onChange={e => setLocation(e.target.value)} placeholder="(선택)"
+              className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white" />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              onClick={cancel}
+              className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              취소
             </button>
-            <button onClick={save} disabled={updateEvent.isPending}
-              className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded" title="저장">
-              <Check size={14} />
+            <button
+              onClick={save}
+              disabled={updateEvent.isPending || !title.trim() || !date}
+              className="px-4 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-lg transition-colors"
+            >
+              {updateEvent.isPending ? '저장 중...' : '저장'}
             </button>
           </div>
         </div>
@@ -376,8 +427,9 @@ function EventRow({ event }: { event: DerivedEvent }) {
     )
   }
 
+  // ── 기본 모드 ──
   return (
-    <li className="flex items-center gap-2.5 py-2 group">
+    <li className="flex items-center gap-2.5 py-2.5">
       <input
         type="checkbox"
         checked={event.completed}
@@ -394,9 +446,12 @@ function EventRow({ event }: { event: DerivedEvent }) {
           {event.location && <span className="truncate max-w-[120px]">📍 {event.location}</span>}
         </div>
       </div>
-      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={() => setEditing(true)} className="p-1 text-gray-300 hover:text-indigo-500 rounded" title="수정">
-          <Pencil size={12} />
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          onClick={() => setEditing(true)}
+          className="text-[11px] text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-md transition-colors"
+        >
+          수정
         </button>
         <button onClick={remove} className="p-1 text-gray-300 hover:text-red-500 rounded" title="삭제">
           <Trash2 size={12} />
@@ -468,31 +523,47 @@ function TodoSection({ todos, memoId, defaultClientId, defaultProjectId }: {
       <ul className="divide-y divide-gray-50">
         {todos.map(t => <TodoRow key={t.id} todo={t} />)}
         {adding && (
-          <li className="py-2 space-y-2 bg-amber-50/30 -mx-4 px-4">
-            <input
-              autoFocus
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') reset() }}
-              placeholder="할 일 제목"
-              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            />
-            <div className="flex flex-wrap gap-1.5">
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-              <select value={priority} onChange={e => setPriority(e.target.value as 'high' | 'medium' | 'low')}
-                className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400">
-                <option value="high">높음</option>
-                <option value="medium">보통</option>
-                <option value="low">낮음</option>
-              </select>
-              <div className="ml-auto flex gap-1">
-                <button onClick={reset} className="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="취소">
-                  <X size={14} />
+          <li className="-mx-4 px-4 py-3 bg-indigo-50/40 border-l-2 border-indigo-400">
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <Plus size={11} className="text-indigo-500" />
+              <span className="text-[11px] font-semibold text-indigo-600">새 할 일 추가</span>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">제목</label>
+                <input
+                  autoFocus
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') reset() }}
+                  placeholder="할 일 내용"
+                  className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">마감일</label>
+                  <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">우선순위</label>
+                  <select value={priority} onChange={e => setPriority(e.target.value as 'high' | 'medium' | 'low')}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white">
+                    <option value="high">높음</option>
+                    <option value="medium">보통</option>
+                    <option value="low">낮음</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={reset}
+                  className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg transition-colors">
+                  취소
                 </button>
                 <button onClick={save} disabled={createTodo.isPending || !title.trim()}
-                  className="p-1.5 text-indigo-500 hover:bg-indigo-50 disabled:opacity-40 rounded" title="저장">
-                  <Check size={14} />
+                  className="px-4 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-lg transition-colors">
+                  {createTodo.isPending ? '저장 중...' : '저장'}
                 </button>
               </div>
             </div>
@@ -573,29 +644,48 @@ function EventSection({ events, memoId, defaultClientId, defaultProjectId }: {
       <ul className="divide-y divide-gray-50">
         {events.map(e => <EventRow key={e.id} event={e} />)}
         {adding && (
-          <li className="py-2 space-y-2 bg-blue-50/30 -mx-4 px-4">
-            <input
-              autoFocus
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') reset() }}
-              placeholder="일정 제목"
-              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            />
-            <div className="flex flex-wrap gap-1.5">
-              <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-              <input type="time" value={time} onChange={e => setTime(e.target.value)}
-                className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-              <input value={location} onChange={e => setLocation(e.target.value)} placeholder="장소"
-                className="flex-1 min-w-[80px] px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-              <div className="flex gap-1">
-                <button onClick={reset} className="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="취소">
-                  <X size={14} />
+          <li className="-mx-4 px-4 py-3 bg-indigo-50/40 border-l-2 border-indigo-400">
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <Plus size={11} className="text-indigo-500" />
+              <span className="text-[11px] font-semibold text-indigo-600">새 일정 추가</span>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">제목</label>
+                <input
+                  autoFocus
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') reset() }}
+                  placeholder="일정 내용"
+                  className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">날짜</label>
+                  <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">시간</label>
+                  <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 mb-1">장소</label>
+                <input value={location} onChange={e => setLocation(e.target.value)} placeholder="(선택)"
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white" />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={reset}
+                  className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg transition-colors">
+                  취소
                 </button>
-                <button onClick={save} disabled={!title.trim() || !date}
-                  className="p-1.5 text-indigo-500 hover:bg-indigo-50 disabled:opacity-40 rounded" title="저장">
-                  <Check size={14} />
+                <button onClick={save} disabled={saving || !title.trim() || !date}
+                  className="px-4 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold rounded-lg transition-colors">
+                  {saving ? '저장 중...' : '저장'}
                 </button>
               </div>
             </div>
