@@ -184,6 +184,7 @@ export type MemoType = '일정' | 'TODO' | 'CRM' | '프로젝트_로그' | '회�
 
 export interface ParsedResult {
   memo_type?: MemoType
+  memo_summary?: string   // AI 짧은 요약 (15~25자, 카드 제목용)
   confidence?: number
   events: Array<{
     title: string

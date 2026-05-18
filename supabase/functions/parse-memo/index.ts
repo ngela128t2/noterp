@@ -166,9 +166,22 @@ memo_type을 하나 선택:
 [태그]
 tags: 2~5개 한국어 업무 키워드. 고유명사 제외.
 
+[메모 짧은 요약 — 매우 중요]
+memo_summary: 메모의 핵심을 한 줄로 요약. 15~25자, 카드 제목용.
+규칙:
+- 시간/장소 같은 디테일은 빼고 "무슨 일인가"만
+- 동사 또는 명사구로 끝남
+- "오전 11시 30분 서울시립대 ... 점심식사" → "서울시립대 세무사 점심식사"
+- "어마마법인 거래내역 안옴, 종소세 마감" → "어마마법인 거래내역 확인"
+- "한공회 어제 10시 회의, 오늘 뒷풀이" → "한공회 회의 + 뒷풀이"
+- "김대표 오후 전화 예정" → "김대표 전화"
+
+raw_text가 이미 짧고 명확하면 그대로 사용 가능.
+
 반환 형식 (순수 JSON, 마크다운 없이):
 {
   "memo_type": "일정"|"TODO"|"CRM"|"프로젝트_로그"|"회의메모"|"연구메모"|"개인메모",
+  "memo_summary": "15~25자 짧은 요약",
   "confidence": 0.0~1.0,
   "events": [{ "title": string, "date": string|null, "time": string|null, "location": string|null, "client_name": string|null }],
   "todos": [{ "title": string, "due_date": string|null, "priority": "high"|"medium"|"low"|null, "assignee": string|null }],
