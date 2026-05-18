@@ -1,9 +1,11 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState } from 'react'
-import { ArrowLeft, Building2, FolderKanban, CalendarDays, CheckSquare, Target, ChevronDown, Pencil, Trash2, X, Check } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { ArrowLeft, Building2, FolderKanban, CalendarDays, CheckSquare, Target, ChevronDown, Pencil, Trash2, X, Check, Plus } from 'lucide-react'
 import { useMemoDetail, useMemoDerived, type DerivedTodo, type DerivedEvent } from '../hooks/useMemoDetail'
-import { useToggleTodo, useSnoozeTodo, useUpdateTodo, useDeleteTodo } from '../hooks/useTodos'
+import { useToggleTodo, useSnoozeTodo, useUpdateTodo, useDeleteTodo, useCreateTodo } from '../hooks/useTodos'
 import { useCompleteCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent } from '../hooks/useCalendarEvents'
+import { supabase } from '../lib/supabase'
 
 function formatDateTime(iso: string) {
   const d = new Date(iso)
@@ -139,22 +141,20 @@ export default function MemoDetailPage() {
       )}
 
       {/* 할 일 */}
-      {todos.length > 0 && (
-        <Section icon={<CheckSquare size={14} className="text-orange-500" />} title={`할 일 ${todos.length}건`}>
-          <ul className="divide-y divide-gray-50">
-            {todos.map(t => <TodoRow key={t.id} todo={t} />)}
-          </ul>
-        </Section>
-      )}
+      <TodoSection
+        todos={todos}
+        memoId={memo.id}
+        defaultClientId={clients[0]?.id ?? null}
+        defaultProjectId={projects[0]?.id ?? null}
+      />
 
       {/* 일정 */}
-      {events.length > 0 && (
-        <Section icon={<CalendarDays size={14} className="text-blue-500" />} title={`일정 ${events.length}건`}>
-          <ul className="divide-y divide-gray-50">
-            {events.map(e => <EventRow key={e.id} event={e} />)}
-          </ul>
-        </Section>
-      )}
+      <EventSection
+        events={events}
+        memoId={memo.id}
+        defaultClientId={clients[0]?.id ?? null}
+        defaultProjectId={projects[0]?.id ?? null}
+      />
 
       {/* 마일스톤 */}
       {milestones.length > 0 && (
@@ -403,6 +403,209 @@ function EventRow({ event }: { event: DerivedEvent }) {
         </button>
       </div>
     </li>
+  )
+}
+
+// ── Todo 섹션 (목록 + 추가 버튼 + 신규 입력 폼) ────────────────────────
+function TodoSection({ todos, memoId, defaultClientId, defaultProjectId }: {
+  todos: DerivedTodo[]
+  memoId: string
+  defaultClientId: string | null
+  defaultProjectId: string | null
+}) {
+  const [adding, setAdding] = useState(false)
+  const [title, setTitle] = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium')
+  const createTodo = useCreateTodo()
+  const qc = useQueryClient()
+
+  const reset = () => {
+    setAdding(false)
+    setTitle('')
+    setDueDate('')
+    setPriority('medium')
+  }
+
+  const save = () => {
+    if (!title.trim()) return
+    createTodo.mutate(
+      {
+        user_id: '',   // 훅에서 자동 채움
+        title: title.trim(),
+        due_date: dueDate || null,
+        priority,
+        completed: false,
+        client_id: defaultClientId,
+        project_id: defaultProjectId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        memo_id: memoId,
+      } as any,
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: ['memo', memoId] })
+          qc.invalidateQueries({ queryKey: ['activity_stream'] })
+          reset()
+        },
+      },
+    )
+  }
+
+  return (
+    <section className="bg-white border border-gray-100 rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-1.5">
+          <CheckSquare size={14} className="text-orange-500" />
+          <h2 className="text-xs font-semibold text-gray-700">할 일 {todos.length}건</h2>
+        </div>
+        {!adding && (
+          <button onClick={() => setAdding(true)}
+            className="flex items-center gap-1 text-[11px] text-indigo-500 hover:text-indigo-700">
+            <Plus size={11} /> 추가
+          </button>
+        )}
+      </div>
+      <ul className="divide-y divide-gray-50">
+        {todos.map(t => <TodoRow key={t.id} todo={t} />)}
+        {adding && (
+          <li className="py-2 space-y-2 bg-amber-50/30 -mx-4 px-4">
+            <input
+              autoFocus
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') reset() }}
+              placeholder="할 일 제목"
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+            <div className="flex flex-wrap gap-1.5">
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+              <select value={priority} onChange={e => setPriority(e.target.value as 'high' | 'medium' | 'low')}
+                className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400">
+                <option value="high">높음</option>
+                <option value="medium">보통</option>
+                <option value="low">낮음</option>
+              </select>
+              <div className="ml-auto flex gap-1">
+                <button onClick={reset} className="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="취소">
+                  <X size={14} />
+                </button>
+                <button onClick={save} disabled={createTodo.isPending || !title.trim()}
+                  className="p-1.5 text-indigo-500 hover:bg-indigo-50 disabled:opacity-40 rounded" title="저장">
+                  <Check size={14} />
+                </button>
+              </div>
+            </div>
+          </li>
+        )}
+        {todos.length === 0 && !adding && (
+          <li className="py-3 text-center text-[11px] text-gray-300">할 일이 없습니다</li>
+        )}
+      </ul>
+    </section>
+  )
+}
+
+// ── Event 섹션 (목록 + 추가 버튼) ───────────────────────────────────────
+function EventSection({ events, memoId, defaultClientId, defaultProjectId }: {
+  events: DerivedEvent[]
+  memoId: string
+  defaultClientId: string | null
+  defaultProjectId: string | null
+}) {
+  const [adding, setAdding] = useState(false)
+  const [title, setTitle] = useState('')
+  const [date, setDate] = useState('')
+  const [time, setTime] = useState('')
+  const [location, setLocation] = useState('')
+  const [saving, setSaving] = useState(false)
+  const qc = useQueryClient()
+
+  const reset = () => {
+    setAdding(false)
+    setTitle('')
+    setDate('')
+    setTime('')
+    setLocation('')
+  }
+
+  const save = async () => {
+    if (!title.trim() || !date || saving) return
+    setSaving(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      // memo_id 주입 필요해서 직접 supabase insert (useCreateCalendarEvent는 memo_id 인자 없음)
+      const { error } = await supabase.from('calendar_events').insert({
+        user_id: user.id,
+        title: title.trim(),
+        date,
+        time: time || null,
+        location: location.trim() || null,
+        client_id: defaultClientId,
+        project_id: defaultProjectId,
+        memo_id: memoId,
+      })
+      if (error) { console.error(error); return }
+      qc.invalidateQueries({ queryKey: ['memo', memoId] })
+      qc.invalidateQueries({ queryKey: ['calendar_events'] })
+      qc.invalidateQueries({ queryKey: ['activity_stream'] })
+      reset()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="bg-white border border-gray-100 rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-1.5">
+          <CalendarDays size={14} className="text-blue-500" />
+          <h2 className="text-xs font-semibold text-gray-700">일정 {events.length}건</h2>
+        </div>
+        {!adding && (
+          <button onClick={() => setAdding(true)}
+            className="flex items-center gap-1 text-[11px] text-indigo-500 hover:text-indigo-700">
+            <Plus size={11} /> 추가
+          </button>
+        )}
+      </div>
+      <ul className="divide-y divide-gray-50">
+        {events.map(e => <EventRow key={e.id} event={e} />)}
+        {adding && (
+          <li className="py-2 space-y-2 bg-blue-50/30 -mx-4 px-4">
+            <input
+              autoFocus
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') reset() }}
+              placeholder="일정 제목"
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+            <div className="flex flex-wrap gap-1.5">
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+              <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                className="px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+              <input value={location} onChange={e => setLocation(e.target.value)} placeholder="장소"
+                className="flex-1 min-w-[80px] px-2 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+              <div className="flex gap-1">
+                <button onClick={reset} className="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="취소">
+                  <X size={14} />
+                </button>
+                <button onClick={save} disabled={!title.trim() || !date}
+                  className="p-1.5 text-indigo-500 hover:bg-indigo-50 disabled:opacity-40 rounded" title="저장">
+                  <Check size={14} />
+                </button>
+              </div>
+            </div>
+          </li>
+        )}
+        {events.length === 0 && !adding && (
+          <li className="py-3 text-center text-[11px] text-gray-300">일정이 없습니다</li>
+        )}
+      </ul>
+    </section>
   )
 }
 
