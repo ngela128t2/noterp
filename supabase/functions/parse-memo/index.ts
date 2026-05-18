@@ -291,7 +291,7 @@ Deno.serve(async (req: Request) => {
     const MODEL = 'claude-haiku-4-5-20251001'
     const message = await client.messages.create({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 2048,    // prompt 확장 + 다중 event/project 응답에 여유
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userMessage }],
     })
