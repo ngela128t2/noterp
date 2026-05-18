@@ -100,9 +100,18 @@ async function writeActivityLog(input: {
   if (error) console.error('활동 로그 저장 오류:', error)
 }
 
-async function ensureMilestone(projectId: string, title: string, dueDate: string | null, cache: Map<string, MilestoneRow[]>, memoId: string | null = null) {
+async function ensureMilestone(
+  projectId: string,
+  title: string,
+  dueDate: string | null,
+  cache: Map<string, MilestoneRow[]>,
+  memoId: string | null = null,
+  blockedTitles: Set<string> = new Set(),
+) {
   const cleanTitle = title.trim()
   if (!cleanTitle || isDateOnlyTitle(cleanTitle)) return  // 날짜형 제목 차단
+  // event/todo로 이미 동일 제목 만들어지면 milestone 생성 스킵 (중복 방지)
+  if (blockedTitles.has(normalizeMemoName(cleanTitle))) return
 
   let rows = cache.get(projectId)
   if (!rows) {
@@ -128,6 +137,7 @@ async function ensureMilestone(projectId: string, title: string, dueDate: string
 }
 
 // milestones 배열이 있으면 배열 전체를, 없으면 단일 milestone으로 fallback
+// blockedTitles: 이미 event/todo로 만들어진 제목 집합 (중복 방지)
 async function ensureMilestones(
   projectId: string,
   project: { milestone: string | null; milestones?: Array<{ title: string; due_date: string | null }> | null },
@@ -135,14 +145,15 @@ async function ensureMilestones(
   fallbackDate: string | null,
   cache: Map<string, MilestoneRow[]>,
   memoId: string | null = null,
+  blockedTitles: Set<string> = new Set(),
 ) {
   const arr = project.milestones?.filter(m => m.title.trim()) ?? []
   if (arr.length > 0) {
     for (const m of arr) {
-      await ensureMilestone(projectId, m.title, m.due_date, cache, memoId)
+      await ensureMilestone(projectId, m.title, m.due_date, cache, memoId, blockedTitles)
     }
   } else {
-    await ensureMilestone(projectId, project.milestone || fallbackTitle, fallbackDate, cache, memoId)
+    await ensureMilestone(projectId, project.milestone || fallbackTitle, fallbackDate, cache, memoId, blockedTitles)
   }
 }
 
@@ -388,6 +399,14 @@ export default function MemoPage() {
       const touchedProjectIds = new Set<string>()
       const milestoneCache = new Map<string, MilestoneRow[]>()
 
+      // AI가 추출한 events/todos 제목 — 같은 제목으로 milestone 만들지 않도록 차단
+      const blockedMilestoneTitles = new Set<string>(
+        [
+          ...(ep.events ?? []).map(e => normalizeMemoName(e.title ?? '')),
+          ...(ep.todos ?? []).map(t => normalizeMemoName(t.title ?? '')),
+        ].filter(Boolean),
+      )
+
       for (const project of projectInputs) {
         const name = project.name.trim()
         if (!name) continue
@@ -407,7 +426,7 @@ export default function MemoPage() {
             (project.milestones?.filter(m => m.title.trim()).length ?? 0) > 0 ||
             (project.milestone != null && project.milestone.trim().length > 0)
           if (hasExplicitMilestone) {
-            await ensureMilestones(existing.id, project, memoTitle, primaryDueDate, milestoneCache, memoId)
+            await ensureMilestones(existing.id, project, memoTitle, primaryDueDate, milestoneCache, memoId, blockedMilestoneTitles)
           }
           continue
         }
@@ -450,7 +469,7 @@ export default function MemoPage() {
           arr.push(row)
           projectsByNameOnly.set(nameKey, arr)
           touchedProjectIds.add(row.id)
-          await ensureMilestones(row.id, project, memoTitle, primaryDueDate, milestoneCache, memoId)
+          await ensureMilestones(row.id, project, memoTitle, primaryDueDate, milestoneCache, memoId, blockedMilestoneTitles)
         }
       }
 
