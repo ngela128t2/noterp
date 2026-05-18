@@ -8,6 +8,21 @@ function timeLabel(iso: string) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+// (M/D) 오전H시 / 오후H시 형식 — derived 항목용
+function occurredLabel(iso: string) {
+  const d = new Date(iso)
+  const m = d.getMonth() + 1
+  const day = d.getDate()
+  const h = d.getHours()
+  const min = d.getMinutes()
+  // 시간이 00:00이면 시간 미상 (date만 표시)
+  if (h === 0 && min === 0) return `(${m}/${day})`
+  const ampm = h < 12 ? '오전' : '오후'
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h
+  const timeStr = min > 0 ? `${ampm}${h12}시${min}분` : `${ampm}${h12}시`
+  return `(${m}/${day}) ${timeStr}`
+}
+
 const TYPE_LABEL: Record<StreamItem['stream_type'], string> = {
   memo: '메모',
   event: '일정',
@@ -148,6 +163,9 @@ function MemoCard({ memo, derived }: StreamGroup) {
               >
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityMeta?.dot ?? TYPE_DOT[d.stream_type]}`} />
                 <span className="text-[10px] text-gray-400 shrink-0 w-12">{TYPE_LABEL[d.stream_type]}</span>
+                <span className="text-[10px] font-mono text-indigo-400 shrink-0">
+                  {occurredLabel(d.occurred_at ?? d.created_at)}
+                </span>
                 <span className="flex-1 min-w-0 text-xs text-gray-600 truncate break-keep">{d.title}</span>
                 {priorityMeta && (
                   <span className={`text-[9px] font-semibold shrink-0 ${priorityMeta.text}`}>

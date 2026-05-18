@@ -15,6 +15,7 @@ export type StreamItem = {
   memo_id: string | null
   user_id: string
   created_at: string
+  occurred_at: string  // 실제 발생 시간 (event=date+time, todo=due_date, memo=created_at)
   extra: string | null
   meta_type: string | null
 }
@@ -116,12 +117,12 @@ export function useTodayFlow(options: { includeActivity?: boolean } = {}) {
       derivedByMemoId.set(item.memo_id, list)
     }
 
-    // 그룹화된 memo (오래된 → 최신 순으로 파생 항목 정렬)
+    // 그룹화된 memo — 파생 항목을 occurred_at(실제 시간) 기준으로 정렬
     const groups: StreamGroup[] = memos.map(memo => ({
       kind: 'memo-group',
       memo,
       derived: (derivedByMemoId.get(memo.id) ?? []).sort(
-        (a, b) => a.created_at.localeCompare(b.created_at)
+        (a, b) => (a.occurred_at ?? a.created_at).localeCompare(b.occurred_at ?? b.created_at)
       ),
     }))
 
@@ -133,10 +134,21 @@ export function useTodayFlow(options: { includeActivity?: boolean } = {}) {
       )
       .map(item => ({ kind: 'orphan', item }))
 
-    // 그룹과 orphan을 created_at 기준으로 mix (최신순)
-    const sortKey = (r: StreamRow) =>
-      r.kind === 'memo-group' ? r.memo.created_at : r.item.created_at
-    return [...groups, ...orphans].sort((a, b) => sortKey(b).localeCompare(sortKey(a)))
+    // 그룹/orphan을 "실제 시간" 기준 정렬 (오늘 시간 흐름 순서)
+    //   - 메모 그룹: derived의 가장 빠른 occurred_at (오늘 첫 일정 시간)
+    //   - orphan: 본인 occurred_at
+    //   - 정렬 방향: 오늘 흐름이라 이른 시간 → 늦은 시간 (오름차순)
+    const groupSortTime = (g: StreamGroup): string => {
+      const times = g.derived
+        .map(d => d.occurred_at ?? d.created_at)
+        .filter((t): t is string => !!t)
+      return times.length > 0
+        ? times.sort()[0]!
+        : (g.memo.occurred_at ?? g.memo.created_at)
+    }
+    const sortKey = (r: StreamRow): string =>
+      r.kind === 'memo-group' ? groupSortTime(r) : (r.item.occurred_at ?? r.item.created_at)
+    return [...groups, ...orphans].sort((a, b) => sortKey(a).localeCompare(sortKey(b)))
   }, [query.data, includeActivity])
 
   return {

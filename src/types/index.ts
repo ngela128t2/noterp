@@ -208,7 +208,7 @@ export interface ParsedResult {
     name: string
     client_name: string | null
     milestone: string | null
-    milestones: Array<{ title: string; due_date: string | null }> | null
+    milestones: Array<{ title: string; due_date: string | null; time?: string | null }> | null
   }>
   contacts: Array<{
     name: string

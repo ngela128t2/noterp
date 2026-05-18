@@ -104,6 +104,7 @@ async function ensureMilestone(
   projectId: string,
   title: string,
   dueDate: string | null,
+  time: string | null,
   cache: Map<string, MilestoneRow[]>,
   memoId: string | null = null,
   blockedTitles: Set<string> = new Set(),
@@ -129,7 +130,7 @@ async function ensureMilestone(
 
   const { data, error } = await supabase
     .from('milestones')
-    .insert({ project_id: projectId, title: cleanTitle, due_date: dueDate, completed: false, memo_id: memoId })
+    .insert({ project_id: projectId, title: cleanTitle, due_date: dueDate, time, completed: false, memo_id: memoId })
     .select('id, title, due_date')
     .single()
   if (error) throw error
@@ -140,7 +141,7 @@ async function ensureMilestone(
 // blockedTitles: 이미 event/todo로 만들어진 제목 집합 (중복 방지)
 async function ensureMilestones(
   projectId: string,
-  project: { milestone: string | null; milestones?: Array<{ title: string; due_date: string | null }> | null },
+  project: { milestone: string | null; milestones?: Array<{ title: string; due_date: string | null; time?: string | null }> | null },
   fallbackTitle: string,
   fallbackDate: string | null,
   cache: Map<string, MilestoneRow[]>,
@@ -150,10 +151,10 @@ async function ensureMilestones(
   const arr = project.milestones?.filter(m => m.title.trim()) ?? []
   if (arr.length > 0) {
     for (const m of arr) {
-      await ensureMilestone(projectId, m.title, m.due_date, cache, memoId, blockedTitles)
+      await ensureMilestone(projectId, m.title, m.due_date, m.time ?? null, cache, memoId, blockedTitles)
     }
   } else {
-    await ensureMilestone(projectId, project.milestone || fallbackTitle, fallbackDate, cache, memoId, blockedTitles)
+    await ensureMilestone(projectId, project.milestone || fallbackTitle, fallbackDate, null, cache, memoId, blockedTitles)
   }
 }
 

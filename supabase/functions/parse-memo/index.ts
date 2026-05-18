@@ -235,7 +235,7 @@ raw_text가 이미 짧고 명확하면 그대로 사용 가능.
   "events": [{ "title": string, "date": string|null, "time": string|null, "location": string|null, "client_name": string|null }],
   "todos": [{ "title": string, "due_date": string|null, "priority": "high"|"medium"|"low"|null, "assignee": string|null }],
   "clients": [{ "name": string, "action": string|null, "is_new": boolean }],
-  "projects": [{ "name": string, "client_name": string|null, "milestone": string|null, "milestones": [{"title": string, "due_date": string|null}]|null }],
+  "projects": [{ "name": string, "client_name": string|null, "milestone": string|null, "milestones": [{"title": string, "due_date": string|null, "time": string|null}]|null }],
   "contacts": [{ "name": string, "company": string|null, "title": string|null }],
   "tags": ["string"],
   "raw_memo": string

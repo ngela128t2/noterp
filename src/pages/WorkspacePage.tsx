@@ -324,6 +324,15 @@ function Row({ label, value, mono, highlight }: { label: string; value: string |
 
 // ── 진행 중 업무 섹션 ──────────────────────────────────────────────────────────
 
+type WorkFilter = 'all' | 'event' | 'todo' | 'milestone'
+
+const FILTER_LABEL: Record<WorkFilter, string> = {
+  all: '전체',
+  event: '일정',
+  todo: '할 일',
+  milestone: '마일스톤',
+}
+
 function WorkItemsSection({
   items, projects, onMemo,
 }: {
@@ -332,17 +341,30 @@ function WorkItemsSection({
   onMemo: () => void
 }) {
   const projectMap = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects])
+  const [filter, setFilter] = useState<WorkFilter>('all')
+
+  // 필터별 카운트 계산 (chip에 표시)
+  const counts = useMemo(() => {
+    const c = { all: 0, event: 0, todo: 0, milestone: 0 }
+    for (const t of items) {
+      if (t.kind !== 'work') continue
+      c.all++
+      c[t.item.source]++
+    }
+    return c
+  }, [items])
 
   const grouped = useMemo(() => {
     const groups = new Map<string | null, import('../hooks/useContextTimeline').TimelineItem[]>()
     for (const t of items) {
       if (t.kind !== 'work') continue
+      if (filter !== 'all' && t.item.source !== filter) continue
       const pid = t.item.projectId ?? null
       if (!groups.has(pid)) groups.set(pid, [])
       groups.get(pid)!.push(t)
     }
     return groups
-  }, [items])
+  }, [items, filter])
 
   const sortedKeys = useMemo(() => {
     const keys = [...grouped.keys()]
@@ -357,6 +379,33 @@ function WorkItemsSection({
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">진행 중 업무</p>
         <button onClick={onMemo} className="text-xs text-indigo-500 hover:underline">+ 메모</button>
       </div>
+
+      {/* 필터 chip — 타입별 (전체/일정/할 일/마일스톤) */}
+      {counts.all > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {(Object.keys(FILTER_LABEL) as WorkFilter[]).map(k => {
+            const count = counts[k]
+            const active = filter === k
+            const disabled = k !== 'all' && count === 0
+            return (
+              <button
+                key={k}
+                onClick={() => !disabled && setFilter(k)}
+                disabled={disabled}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                  active
+                    ? 'bg-indigo-600 text-white'
+                    : disabled
+                      ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
+                      : 'bg-white border border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
+                }`}
+              >
+                {FILTER_LABEL[k]} <span className={active ? 'text-indigo-200' : 'text-gray-400'}>{count}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
       {sortedKeys.map(pid => {
         const groupItems = grouped.get(pid)!
         const proj = pid ? projectMap.get(pid) : null
